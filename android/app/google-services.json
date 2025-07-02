@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "89229093650",
+    "project_id": "bodago-apps",
+    "storage_bucket": "bodago-apps.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:89229093650:android:2fd52f978fe416a819e1cb",
+        "android_client_info": {
+          "package_name": "com.customerapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBg5fETIRxDix9PA2PVPPHA1RCiJEjSJBA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:89229093650:android:e99650e8b9824fe419e1cb",
+        "android_client_info": {
+          "package_name": "com.driverapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBg5fETIRxDix9PA2PVPPHA1RCiJEjSJBA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
