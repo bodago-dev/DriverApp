@@ -17,3 +17,6 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
+
+include ':react-native-vector-icons'
+project(':react-native-vector-icons').projectDir = file('../node_modules/react-native-vector-icons/android')
