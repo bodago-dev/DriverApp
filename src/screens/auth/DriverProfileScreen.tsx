@@ -91,7 +91,7 @@ const DriverProfileScreen = ({ route, navigation }) => {
             <Text style={styles.label}>Phone Number</Text>
             <TextInput
               style={[styles.input, styles.disabledInput]}
-              value={`+255 ${phoneNumber}`}
+              value={`${phoneNumber}`}
               editable={false}
             />
           </View>

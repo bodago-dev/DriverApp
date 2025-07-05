@@ -122,7 +122,7 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
             onPress: () => {
               // In a real app, this would navigate to a verification pending screen
               // For demo purposes, we'll navigate to the main app
-//               navigation.navigate('Home');
+              // navigation.navigate('Home');
               navigation.reset({
                 index: 0,
                 routes: [{ name: 'Main' }],

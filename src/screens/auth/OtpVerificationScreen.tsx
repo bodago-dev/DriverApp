@@ -11,14 +11,17 @@ import {
   Alert,
 } from 'react-native';
 
+import { getAuth } from '@react-native-firebase/auth';
+import authService from '../../services/AuthService';
+
 const OtpVerificationScreen = ({ route, navigation }) => {
-  const { phoneNumber } = route.params;
-  const [otp, setOtp] = useState(['', '', '', '']);
+  const { phoneNumber, verificationId } = route.params; // Now receiving verificationId instead of confirmation
+  const [otp, setOtp] = useState(['', '', '', '', '', '']); // 6 digits now
   const [timer, setTimer] = useState(60);
   const [isResending, setIsResending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   
-  const inputRefs = Array(4).fill(0).map(() => React.createRef());
+  const inputRefs = Array(6).fill(0).map(() => React.createRef());
 
   useEffect(() => {
     // Start countdown timer
@@ -44,7 +47,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
     setOtp(newOtp);
 
     // Auto-focus to next input
-    if (text && index < 3) {
+    if (text && index < 5) {
       inputRefs[index + 1].current.focus();
     }
   };
@@ -56,50 +59,74 @@ const OtpVerificationScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleResendOtp = () => {
-    if (timer > 0) return;
-    
-    setIsResending(true);
-    
-    // Simulate API call to resend OTP
-    setTimeout(() => {
-      setIsResending(false);
-      setTimer(60);
-      Alert.alert('OTP Sent', 'A new verification code has been sent to your phone.');
-    }, 1500);
-  };
+  const handleResendOtp = async () => {
+      if (timer > 0) return;
 
-  const handleVerify = () => {
-    // Check if OTP is complete
-    if (otp.some(digit => !digit)) {
-      Alert.alert('Incomplete OTP', 'Please enter the complete verification code.');
-      return;
-    }
+      setIsResending(true);
 
-    setIsVerifying(true);
-
-    // Simulate API call to verify OTP
-    setTimeout(() => {
-      setIsVerifying(false);
-      
-      // For demo purposes, any 4-digit code is accepted
-      // In a real app, this would validate against a backend
-      
-      // Check if this is a new driver or existing driver
-      const isNewDriver = true; // This would be determined by the backend
-      
-      if (isNewDriver) {
-        // New driver - go to profile setup
-        navigation.navigate('DriverProfile', { phoneNumber });
-      } else {
-        // Existing driver - go to main app
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Main' }],
-        });
+      try {
+        const result = await authService.sendOTP(phoneNumber);
+        if (result.success) {
+          Alert.alert('OTP Sent', 'A new verification code has been sent to your phone.');
+          setTimer(60);
+          // Update the verificationId if needed
+          // verificationId = result.confirmation.verificationId;
+        } else {
+          Alert.alert('Error', result.error || 'Failed to resend OTP');
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Failed to resend OTP. Please try again.');
+      } finally {
+        setIsResending(false);
       }
-    }, 1500);
   };
+
+  // Update the handleVerify function in OtpVerificationScreen.tsx
+    const handleVerify = async () => {
+      const otpCode = otp.join('');
+      if (otpCode.length !== 6) {
+        Alert.alert('Incomplete OTP', 'Please enter the complete 6-digit verification code.');
+        return;
+      }
+
+      setIsVerifying(true);
+
+      try {
+        const result = await authService.verifyOTP(verificationId, otpCode);
+        if (result.success) {
+          if (result.isNewUser) {
+            navigation.replace('DriverProfile', {
+              phoneNumber,
+              verificationId
+            });
+          } else {
+            // Existing user:
+            // The onAuthStateChanged listener in MainNavigator should now detect
+            // the authenticated user (result.user) and automatically navigate to MainTabs.
+            // So, explicitly navigating to 'MainTabs' here can be redundant and
+            // might potentially cause a flicker or race condition with MainNavigator's logic.
+            // It's generally better to let MainNavigator handle this transition.
+
+            // Consider removing this line if MainNavigator is set up correctly:
+            // navigation.replace('MainTabs');
+            console.log('Existing user verified. MainNavigator should handle navigation to MainTabs.');
+            // If, after testing, MainNavigator doesn't automatically navigate existing users
+            // to MainTabs upon successful OTP verification, you might need to reinstate it.
+            // However, the standard pattern is for MainNavigator's auth listener to manage this.
+          }
+        } else {
+          Alert.alert('Error', result.error || 'Verification failed');
+        }
+      } catch (error) {
+        console.error('Verification error:', error);
+          Alert.alert(
+            'Error',
+            error.message || 'Verification failed. Please try again.'
+          );
+      } finally {
+        setIsVerifying(false);
+      }
+    };
 
   return (
     <KeyboardAvoidingView
@@ -108,7 +135,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.title}>Verification Code</Text>
         <Text style={styles.subtitle}>
-          Enter the 4-digit code sent to +255 {phoneNumber}
+          Enter the 6-digit code sent to +255 {phoneNumber}
         </Text>
 
         <View style={styles.otpContainer}>
@@ -197,7 +224,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   otpInput: {
-    width: 60,
+    width: 50,
     height: 60,
     borderWidth: 1,
     borderColor: '#ddd',

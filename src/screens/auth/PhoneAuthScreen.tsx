@@ -10,53 +10,89 @@ import {
   Platform,
   ScrollView,
   Alert,
+  StyleProp,
+  ViewStyle,
+  TextStyle,
+  ImageStyle,
 } from 'react-native';
 
-const PhoneAuthScreen = ({ navigation }) => {
+import authService from '../../services/AuthService';
+
+// Define types for your navigation
+type RootStackParamList = {
+  OtpVerification: {
+    verificationId: string; // Only pass the string ID instead of whole confirmation object
+    phoneNumber: string;
+  };
+};
+
+type PhoneAuthScreenProps = {
+  navigation: {
+    navigate: (screen: keyof RootStackParamList, params?: any) => void;
+  };
+};
+
+const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleContinue = () => {
-    // Basic validation
-    if (!phoneNumber || phoneNumber.length < 9) {
-      Alert.alert('Invalid Phone Number', 'Please enter a valid phone number');
-      return;
-    }
+  const handleSendOTP = async () => {
+      if (!phoneNumber.trim()) {
+        Alert.alert('Error', 'Please enter your phone number');
+        return;
+      }
 
-    setIsLoading(true);
+      if (phoneNumber.length !== 9) {
+        Alert.alert('Error', 'Please enter a valid 9-digit phone number');
+        return;
+      }
 
-    // Simulate API call to send OTP
-    setTimeout(() => {
-      setIsLoading(false);
-      // Navigate to OTP verification screen
-      navigation.navigate('OtpVerification', { phoneNumber });
-    }, 1500);
+      setIsLoading(true);
+
+      try {
+        const fullPhoneNumber = `+255${phoneNumber}`;
+        const result = await authService.sendOTP(fullPhoneNumber);
+
+        if (result.success) {
+          navigation.navigate('OtpVerification', {
+            verificationId: result.confirmation.verificationId, // Only pass the verificationId
+            phoneNumber: fullPhoneNumber
+          });
+        } else {
+          Alert.alert('Error', result.error || 'Failed to send OTP');
+        }
+      } catch (error) {
+        console.error('OTP Error:', error);
+        Alert.alert('Error', 'Failed to send OTP. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
   };
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}>
+      style={styles.container as StyleProp<ViewStyle>}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.logoContainer}>
           <Image
             source={require('../../assets/rider-logo-placeholder.png')}
-            style={styles.logo}
+            style={styles.logo as StyleProp<ImageStyle>}
             resizeMode="contain"
           />
         </View>
 
-        <Text style={styles.title}>Rider Login
+        <Text style={styles.title as StyleProp<TextStyle>}>Rider Login
         </Text>
-        <Text style={styles.subtitle}>
+        <Text style={styles.subtitle as StyleProp<TextStyle>}>
           Join our delivery network and start earning
         </Text>
 
-        <View style={styles.inputContainer}>
-          <View style={styles.phoneInputContainer}>
-            <Text style={styles.countryCode}>+255</Text>
+        <View style={styles.inputContainer as StyleProp<ViewStyle>}>
+          <View style={styles.phoneInputContainer as StyleProp<ViewStyle>}>
+            <Text style={styles.countryCode as StyleProp<TextStyle>}>+255</Text>
             <TextInput
-              style={styles.input}
+              style={styles.input as StyleProp<TextStyle>}
               placeholder="712 345 678"
               keyboardType="phone-pad"
               value={phoneNumber}
@@ -64,16 +100,19 @@ const PhoneAuthScreen = ({ navigation }) => {
               maxLength={10}
             />
           </View>
-          <Text style={styles.helperText}>
+          <Text style={styles.helperText as StyleProp<TextStyle>}>
             We'll send you a verification code via SMS
           </Text>
         </View>
 
         <TouchableOpacity
-          style={[styles.button, isLoading && styles.buttonDisabled]}
-          onPress={handleContinue}
+          style={[
+              styles.button as StyleProp<ViewStyle>,
+              isLoading && (styles.buttonDisabled as StyleProp<ViewStyle>)
+          ]}
+          onPress={handleSendOTP}
           disabled={isLoading}>
-          <Text style={styles.buttonText}>
+          <Text style={styles.buttonText as StyleProp<TextStyle>}>
             {isLoading ? 'Sending...' : 'Continue'}
           </Text>
         </TouchableOpacity>
@@ -91,16 +130,19 @@ const PhoneAuthScreen = ({ navigation }) => {
           <Text style={styles.requirementItem}>• Age 18 years or above</Text>
         </View>
 
-        <View style={styles.languageSelector}>
-          <Text style={styles.languageText}>Language / Lugha:</Text>
-          <View style={styles.languageOptions}>
-            <TouchableOpacity style={styles.languageOption}>
-              <Text style={[styles.languageOptionText, styles.activeLanguage]}>
+        <View style={styles.languageSelector as StyleProp<ViewStyle>}>
+          <Text style={styles.languageText as StyleProp<TextStyle>}>Language / Lugha:</Text>
+          <View style={styles.languageOptions as StyleProp<ViewStyle>}>
+            <TouchableOpacity style={styles.languageOption as StyleProp<ViewStyle>}>
+              <Text style={[
+                styles.languageOptionText as StyleProp<TextStyle>,
+                styles.activeLanguage as StyleProp<TextStyle>
+              ]}>
                 Swahili
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.languageOption}>
-              <Text style={styles.languageOptionText}>English</Text>
+            <TouchableOpacity style={styles.languageOption as StyleProp<ViewStyle>}>
+              <Text style={styles.languageOptionText as StyleProp<TextStyle>}>English</Text>
             </TouchableOpacity>
           </View>
         </View>
