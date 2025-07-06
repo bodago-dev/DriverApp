@@ -22,7 +22,7 @@ import NavigationScreen from '../screens/main/NavigationScreen';
 import DeliveryStatusScreen from '../screens/main/DeliveryStatusScreen';
 import DeliveryHistoryScreen from '../screens/main/DeliveryHistoryScreen';
 import EarningsScreen from '../screens/main/EarningsScreen';
-// import ProfileScreen from '../screens/main/ProfileScreen';
+import ProfileScreen from '../screens/main/ProfileScreen';
 import SupportScreen from '../screens/main/SupportScreen';
 
 // Stack navigators
@@ -194,7 +194,6 @@ const MainNavigator = () => {
               />
             )
           ) : (
-
             // User not authenticated
             <MainStack.Screen name="Auth" component={AuthNavigator} />
           )}

@@ -125,7 +125,7 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
               // navigation.navigate('Home');
               navigation.reset({
                 index: 0,
-                routes: [{ name: 'Main' }],
+                routes: [{ name: 'MainTabs' }],
               });
             },
           },
