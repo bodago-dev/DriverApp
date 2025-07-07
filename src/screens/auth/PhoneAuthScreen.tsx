@@ -56,7 +56,7 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
         if (result.success) {
           navigation.navigate('OtpVerification', {
             verificationId: result.confirmation.verificationId, // Only pass the verificationId
-            phoneNumber: fullPhoneNumber
+            phoneNumber: phoneNumber
           });
         } else {
           Alert.alert('Error', result.error || 'Failed to send OTP');

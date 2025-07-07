@@ -233,9 +233,7 @@ const HomeScreen = ({ navigation }) => {
                    request.packageSize === 'medium' ? 'Medium' : 'Large'} package
                 </Text>
               </View>
-              <TouchableOpacity style={styles.viewButton}>
                 <Text style={styles.viewButtonText}>View</Text>
-              </TouchableOpacity>
             </View>
           </TouchableOpacity>
         ))}

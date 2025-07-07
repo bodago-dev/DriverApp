@@ -145,10 +145,14 @@ class AuthService {
                 throw new Error('No authenticated user found');
             }
 
+            // Use phoneNumber from userData OR fallback to Firebase Auth user's number
+            const phoneNumber = userData.phoneNumber || user.phoneNumber;
+
             const userProfileData = {
                 uid: user.uid,
-                phoneNumber: user.phoneNumber,
+                phoneNumber,
                 ...userData,
+                onboardingCompleted: false,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             };
@@ -167,6 +171,26 @@ class AuthService {
                 error: this.getErrorMessage(error)
             };
         }
+    }
+
+    // Complete onboarding process
+    async completeOnboarding(userId) {
+      try {
+        await updateDoc(doc(this.db, 'users', userId), {
+          onboardingCompleted: true,
+          updatedAt: serverTimestamp()
+        });
+
+        // Force refresh the user profile
+        await this.loadUserProfile(userId);
+
+        // Notify all listeners
+        this.authStateListeners.forEach(listener => listener(this.user, this.userProfile));
+
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
     }
 
     // Update user profile

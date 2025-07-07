@@ -89,44 +89,25 @@ const OtpVerificationScreen = ({ route, navigation }) => {
         return;
       }
 
-      setIsVerifying(true);
+  setIsVerifying(true);
 
-      try {
-        const result = await authService.verifyOTP(verificationId, otpCode);
-        if (result.success) {
-          if (result.isNewUser) {
-            navigation.replace('DriverProfile', {
-              phoneNumber,
-              verificationId
-            });
-          } else {
-            // Existing user:
-            // The onAuthStateChanged listener in MainNavigator should now detect
-            // the authenticated user (result.user) and automatically navigate to MainTabs.
-            // So, explicitly navigating to 'MainTabs' here can be redundant and
-            // might potentially cause a flicker or race condition with MainNavigator's logic.
-            // It's generally better to let MainNavigator handle this transition.
-
-            // Consider removing this line if MainNavigator is set up correctly:
-            // navigation.replace('MainTabs');
-            console.log('Existing user verified. MainNavigator should handle navigation to MainTabs.');
-            // If, after testing, MainNavigator doesn't automatically navigate existing users
-            // to MainTabs upon successful OTP verification, you might need to reinstate it.
-            // However, the standard pattern is for MainNavigator's auth listener to manage this.
-          }
-        } else {
-          Alert.alert('Error', result.error || 'Verification failed');
+  try {
+      const result = await authService.verifyOTP(verificationId, otpCode);
+      if (result.success) {
+        // If it's a new user, pass the phone number to the onboarding flow
+        if (result.isNewUser) {
+          // The MainNavigator will handle the navigation to onboarding
+          // We don't need explicit navigation here
         }
-      } catch (error) {
-        console.error('Verification error:', error);
-          Alert.alert(
-            'Error',
-            error.message || 'Verification failed. Please try again.'
-          );
-      } finally {
-        setIsVerifying(false);
+      } else {
+        Alert.alert('Error', result.error || 'Verification failed');
       }
-    };
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Verification failed');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView

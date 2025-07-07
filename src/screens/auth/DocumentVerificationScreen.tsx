@@ -11,6 +11,9 @@ import {
   Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import authService from '../../services/AuthService';
+import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
+import { navigationRef } from '../../services/NavigationService';
 
 const DocumentVerificationScreen = ({ route, navigation }) => {
   const { driverProfile, vehicleInfo } = route.params;
@@ -92,47 +95,41 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
     setDocuments(updatedDocuments);
   };
 
-  const handleSubmit = () => {
-    // Check if all required documents are uploaded
-    const missingRequiredDocuments = documentTypes
-      .filter(doc => doc.required && !documents[doc.id])
-      .map(doc => doc.name);
-    
-    if (missingRequiredDocuments.length > 0) {
-      Alert.alert(
-        'Missing Documents',
-        `Please upload the following required documents:\n${missingRequiredDocuments.join('\n')}`,
-      );
-      return;
-    }
+  const handleSubmit = async () => {  // Added async here
+      // Check if all required documents are uploaded
+      const missingRequiredDocuments = documentTypes
+        .filter(doc => doc.required && !documents[doc.id])
+        .map(doc => doc.name);
 
-    setIsLoading(true);
+      if (missingRequiredDocuments.length > 0) {
+        Alert.alert(
+          'Missing Documents',
+          `Please upload the following required documents:\n${missingRequiredDocuments.join('\n')}`,
+        );
+        return;
+      }
 
-    // Simulate API call to submit documents
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // Show success message and navigate to verification pending screen
-      Alert.alert(
-        'Documents Submitted',
-        'Your documents have been submitted for verification. This process may take 1-2 business days. We will notify you once your account is approved.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // In a real app, this would navigate to a verification pending screen
-              // For demo purposes, we'll navigate to the main app
-              // navigation.navigate('Home');
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'MainTabs' }],
-              });
-            },
-          },
-        ]
-      );
-    }, 2000);
-  };
+      setIsLoading(true);
+
+      try {
+        // In a real app, you would:
+        // 1. Upload documents to storage
+        // 2. Update user profile with document references
+        // 3. Mark onboarding as complete
+
+        const auth = getAuth();
+        const user = auth.currentUser;
+
+        if (user) {
+          // This would be your actual document upload logic
+          await authService.completeOnboarding(user.uid);
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Failed to complete onboarding');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   return (
     <KeyboardAvoidingView

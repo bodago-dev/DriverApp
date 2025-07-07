@@ -16,41 +16,21 @@ import authService from '../../services/AuthService';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 
 const DriverProfileScreen = ({ route, navigation }) => {
-  const { phoneNumber } = route.params;
+  const auth = getAuth();
+  const user = auth.currentUser;
+
+  // Get phone number from Firebase auth user
+  const phoneNumber = user?.phoneNumber?.replace('+255', '') || '';
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-//   const handleContinue = () => {
-//     // Basic validation
-//     if (!firstName.trim() || !lastName.trim() || !address.trim()) {
-//       Alert.alert('Missing Information', 'Please fill in all required fields');
-//       return;
-//     }
-//
-//     setIsLoading(true);
-//
-//     // Simulate API call to save profile
-//     setTimeout(() => {
-//       setIsLoading(false);
-//       // Navigate to vehicle info screen
-//       navigation.navigate('VehicleInfo', {
-//         driverProfile: {
-//           firstName,
-//           lastName,
-//           phoneNumber,
-//           email,
-//           address
-//         }
-//       });
-//     }, 1500);
-//   };
-
 
 // Update the handleSaveProfile function in DriverProfileScreen.tsx
-  const handleSaveProfile = async () => {
+const handleSaveProfile = async () => {
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert('Error', 'Please enter your first and last name');
       return;
@@ -58,44 +38,26 @@ const DriverProfileScreen = ({ route, navigation }) => {
 
     setIsLoading(true);
 
-    try { // This is the START of the try block
-      const userData = {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-      };
+    try {
+        const result = await authService.createUserProfile({
+          firstName,
+          lastName,
+          phoneNumber: `+255${phoneNumber}`, // Save with country code
+          email,
+          address
+        });
 
-      // Use authService to create profile
-      const result = await authService.createUserProfile(userData);
-
-      if (result.success) {
-        console.log('Profile saved successfully. MainNavigator will handle the switch to MainTabs.');
-      } else {
-        throw new Error(result.error || 'Failed to save profile');
-      }
-    } catch (error) { // This is the START of the catch block
-      console.error('Profile Save Error:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to save profile. Please try again.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Only navigate back to OtpVerification if the error specifically indicates an auth issue
-              // that requires re-verification.
-              if (error.message && error.message.toLowerCase().includes('authentication')) {
-                // Or perhaps navigation.navigate('PhoneAuth'); if OTP is compromised
-                navigation.navigate('OtpVerification', { phoneNumber });
-              }
-            },
-          },
-        ]
-      );
+        if (result.success) {
+          navigation.navigate('VehicleInfo', {
+            driverProfile: result.userProfile
+          });
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Failed to save profile');
     } finally {
       setIsLoading(false);
     }
-  }; // This closes handleSaveProfile
+}; // This closes handleSaveProfile
 
   return (
     <KeyboardAvoidingView
@@ -142,7 +104,7 @@ const DriverProfileScreen = ({ route, navigation }) => {
             <Text style={styles.label}>Phone Number</Text>
             <TextInput
               style={[styles.input, styles.disabledInput]}
-              value={`${phoneNumber}`}
+              value={`+255${phoneNumber}`}
               editable={false}
             />
           </View>

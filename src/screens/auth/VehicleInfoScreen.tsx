@@ -12,6 +12,8 @@ import {
   Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import authService from '../../services/AuthService';
+import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 
 const VehicleInfoScreen = ({ route, navigation }) => {
   const { driverProfile } = route.params;
@@ -29,26 +31,34 @@ const VehicleInfoScreen = ({ route, navigation }) => {
     { id: 'guta', name: 'Guta', icon: 'car-sport-outline' },
   ];
 
-  const handleContinue = () => {
-    // Basic validation
-    if (!vehicleType) {
-      Alert.alert('Missing Information', 'Please select a vehicle type');
-      return;
-    }
+const handleContinue = async () => {
+  // Basic validation
+  if (!vehicleType) {
+    Alert.alert('Missing Information', 'Please select a vehicle type');
+    return;
+  }
 
-    if (!vehicleMake.trim() || !vehicleModel.trim() || !vehicleYear.trim() || !licensePlate.trim()) {
-      Alert.alert('Missing Information', 'Please fill in all required fields');
-      return;
-    }
+  if (!vehicleMake.trim() || !vehicleModel.trim() || !vehicleYear.trim() || !licensePlate.trim()) {
+    Alert.alert('Missing Information', 'Please fill in all required fields');
+    return;
+  }
 
-    setIsLoading(true);
+  setIsLoading(true);
 
-    // Simulate API call to save vehicle info
-    setTimeout(() => {
-      setIsLoading(false);
-      // Navigate to document verification screen
-      navigation.navigate('DocumentVerification', { 
-        driverProfile,
+  try {
+    await authService.updateUserProfile({
+      vehicleInfo: {
+        vehicleType,
+        vehicleMake,
+        vehicleModel,
+        vehicleYear,
+        licensePlate
+      }
+    });
+
+    navigation.navigate('DocumentVerification', {
+      driverProfile: {
+        ...driverProfile,
         vehicleInfo: {
           vehicleType,
           vehicleMake,
@@ -56,9 +66,14 @@ const VehicleInfoScreen = ({ route, navigation }) => {
           vehicleYear,
           licensePlate
         }
-      });
-    }, 1500);
-  };
+      }
+    });
+  } catch (error) {
+    Alert.alert('Error', 'Failed to save vehicle info');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <KeyboardAvoidingView

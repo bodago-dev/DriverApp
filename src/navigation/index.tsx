@@ -50,19 +50,22 @@ const AuthNavigator = () => {
 // NEW: Onboarding navigator
 const OnboardingNavigator = () => {
   return (
-    <OnboardingStack.Navigator screenOptions={{ headerShown: false }}>
+    <OnboardingStack.Navigator screenOptions={{
+      headerShown: false,
+      gestureEnabled: false
+    }}>
       <OnboardingStack.Screen
         name="DriverProfile"
         component={DriverProfileScreen}
-        initialParams={{ phoneNumber: 'Fallback Phone', verificationId: 'id' }} // TEMPORARY for testing
-        options={{
-          title: 'Complete Your Profile',
-          headerLeft: () => null, // Disables back button
-          gestureEnabled: false  // Disables swipe back gesture
-        }}
       />
-      <OnboardingStack.Screen name="VehicleInfo" component={VehicleInfoScreen} />
-      <OnboardingStack.Screen name="DocumentVerification" component={DocumentVerificationScreen} />
+      <OnboardingStack.Screen
+        name="VehicleInfo"
+        component={VehicleInfoScreen}
+      />
+      <OnboardingStack.Screen
+        name="DocumentVerification"
+        component={DocumentVerificationScreen}
+      />
     </OnboardingStack.Navigator>
   );
 };
@@ -164,42 +167,43 @@ const MainNavigator = () => {
     const [userProfile, setUserProfile] = useState(null); // Store user profile from your DB
     const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
-    useEffect(() => {
-    // Use your AuthService listener
+useEffect(() => {
     const unsubscribe = authService.addAuthStateListener((fbUser, profile) => {
-      console.log('MainNavigator authService Listener - Firebase User:', fbUser);
-      console.log('MainNavigator authService Listener - User Profile:', profile);
       setFirebaseUser(fbUser);
       setUserProfile(profile);
       setIsLoading(false);
+
+      // Debug logs
+      console.log('Auth State Changed:', {
+        hasUser: !!fbUser,
+        hasProfile: !!profile,
+        onboardingCompleted: profile?.onboardingCompleted
+      });
     });
 
-    return () => unsubscribe(); // Cleanup
-  }, []); // Empty dependency array, runs once on mount
+    return () => unsubscribe();
+  }, []);
 
   // This would normally check for authentication state
   // const isAuthenticated = false;
 
-  return (
-    <NavigationContainer ref={navigationRef}>
-        <MainStack.Navigator screenOptions={{ headerShown: false }}>
-          {firebaseUser ? (
-            userProfile ? (
-              <MainStack.Screen name="MainTabs" component={TabNavigator} />
-            ) : (
-              // User authenticated but no profile - show profile completion
-              <MainStack.Screen
-                name="Onboarding"
-                component={OnboardingNavigator}
-              />
-            )
-          ) : (
-            // User not authenticated
-            <MainStack.Screen name="Auth" component={AuthNavigator} />
-          )}
-        </MainStack.Navigator>
-      </NavigationContainer>
-  );
+return (
+  <NavigationContainer ref={navigationRef}>
+    <MainStack.Navigator screenOptions={{ headerShown: false }}>
+      {!firebaseUser ? (
+        <MainStack.Screen name="Auth" component={AuthNavigator} />
+      ) : userProfile?.onboardingCompleted ? (
+        <MainStack.Screen name="MainTabs" component={TabNavigator} />
+      ) : (
+        <MainStack.Screen
+          name="Onboarding"
+          component={OnboardingNavigator}
+          options={{ gestureEnabled: false }}
+        />
+      )}
+    </MainStack.Navigator>
+  </NavigationContainer>
+);
 };
 
 export default MainNavigator;
