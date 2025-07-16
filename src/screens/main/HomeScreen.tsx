@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,12 @@ import {
   Switch,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import firestoreService from '../../services/FirestoreService';
+import authService from '../../services/AuthService';
+import * as Location from 'expo-location'; // Assuming expo-location is used for driver location
 
 const HomeScreen = ({ navigation }) => {
   const [isOnline, setIsOnline] = useState(false);
@@ -23,86 +27,178 @@ const HomeScreen = ({ navigation }) => {
     rating: 0,
   });
   const [nearbyRequests, setNearbyRequests] = useState([]);
+  const [driverId, setDriverId] = useState(null);
+  const [driverLocation, setDriverLocation] = useState(null);
+  const unsubscribeRequestsRef = useRef(null);
 
-  // Fetch driver data
   useEffect(() => {
-    fetchDriverData();
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      setDriverId(currentUser.uid);
+    } else {
+      setIsLoading(false);
+      Alert.alert('Error', 'Driver not authenticated. Please log in.');
+      // Optionally navigate to login screen
+      // navigation.navigate('AuthStack');
+    }
   }, []);
 
-  const fetchDriverData = () => {
-    setIsLoading(true);
-    
-    // Simulate API call to fetch driver data
-    setTimeout(() => {
-      setStats({
-        todayEarnings: 25000,
-        todayDeliveries: 5,
-        weeklyEarnings: 150000,
-        rating: 4.8,
-      });
-      
-      // Generate mock nearby requests if driver is online
-      if (isOnline) {
-        generateMockRequests();
-      } else {
-        setNearbyRequests([]);
+  useEffect(() => {
+    if (driverId) {
+      fetchDriverData();
+      // Initial check for online status from Firestore
+      const checkOnlineStatus = async () => {
+        const result = await firestoreService.getDriverLocation(driverId);
+        if (result.success && result.location && result.location.online) {
+          setIsOnline(true);
+        }
+      };
+      checkOnlineStatus();
+    }
+  }, [driverId]);
+
+  useEffect(() => {
+    if (driverId && isOnline) {
+      // Start location tracking and subscribe to requests when online
+      startLocationTracking();
+      subscribeToDeliveryRequests();
+    } else {
+      // Stop location tracking and unsubscribe when offline
+      stopLocationTracking();
+      if (unsubscribeRequestsRef.current) {
+        unsubscribeRequestsRef.current();
+        unsubscribeRequestsRef.current = null;
       }
-      
+      setNearbyRequests([]); // Clear requests when offline
+    }
+
+    // Update driver online status in Firestore
+    if (driverId) {
+      firestoreService.setDriverOnlineStatus(driverId, isOnline);
+    }
+
+    return () => {
+      if (unsubscribeRequestsRef.current) {
+        unsubscribeRequestsRef.current();
+      }
+    };
+  }, [driverId, isOnline]);
+
+  const fetchDriverData = async () => {
+    setIsLoading(true);
+    try {
+      const profileResult = await firestoreService.getUserProfile(driverId);
+      if (profileResult.success && profileResult.userProfile) {
+        // Assuming stats like rating are part of the driver profile
+        setStats(prev => ({
+          ...prev,
+          rating: profileResult.userProfile.rating || 0,
+        }));
+      }
+
+      // Fetch deliveries for earnings and count
+      const deliveriesResult = await firestoreService.getUserDeliveries(driverId, 'driver');
+      if (deliveriesResult.success) {
+        const allDeliveries = deliveriesResult.deliveries;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        let todayEarnings = 0;
+        let todayDeliveries = 0;
+        let weeklyEarnings = 0;
+
+        allDeliveries.forEach(delivery => {
+          const deliveryDate = delivery.createdAt?.toDate();
+          if (deliveryDate) {
+            // Today's earnings and deliveries
+            if (deliveryDate.toDateString() === today.toDateString() && delivery.status === 'delivered') {
+              todayEarnings += delivery.fareDetails?.total || 0;
+              todayDeliveries++;
+            }
+
+            // Weekly earnings (simple last 7 days check)
+            const oneWeekAgo = new Date(today);
+            oneWeekAgo.setDate(today.getDate() - 7);
+            if (deliveryDate >= oneWeekAgo && delivery.status === 'delivered') {
+              weeklyEarnings += delivery.fareDetails?.total || 0;
+            }
+          }
+        });
+
+        setStats(prev => ({
+          ...prev,
+          todayEarnings,
+          todayDeliveries,
+          weeklyEarnings,
+        }));
+      }
+
+    } catch (error) {
+      console.error('Error fetching driver data:', error);
+      Alert.alert('Error', 'Failed to fetch driver data.');
+    } finally {
       setIsLoading(false);
       setRefreshing(false);
-    }, 1500);
+    }
   };
 
-  const generateMockRequests = () => {
-    const mockRequests = [
+  const startLocationTracking = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Location access needed to receive requests.');
+      setIsOnline(false);
+      return;
+    }
+
+    // Start background location updates if needed, or just foreground for now
+    Location.watchPositionAsync(
       {
-        id: 'REQ1001',
-        pickupAddress: 'Mlimani City Mall',
-        dropoffAddress: 'Kariakoo Market',
-        distance: 5.2,
-        estimatedTime: '15 min',
-        packageSize: 'small',
-        fare: 4500,
+        accuracy: Location.Accuracy.High,
+        timeInterval: 5000, // Update every 5 seconds
+        distanceInterval: 10, // Update every 10 meters
       },
-      {
-        id: 'REQ1002',
-        pickupAddress: 'Julius Nyerere International Airport',
-        dropoffAddress: 'Masaki Peninsula',
-        distance: 12.8,
-        estimatedTime: '35 min',
-        packageSize: 'medium',
-        fare: 9500,
-      },
-      {
-        id: 'REQ1003',
-        pickupAddress: 'University of Dar es Salaam',
-        dropoffAddress: 'Mbezi Beach',
-        distance: 8.5,
-        estimatedTime: '25 min',
-        packageSize: 'small',
-        fare: 6500,
-      },
-    ];
-    
-    setNearbyRequests(mockRequests);
+      (loc) => {
+        const newLocation = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        };
+        setDriverLocation(newLocation);
+        firestoreService.updateDriverLocation(driverId, newLocation);
+      }
+    );
+  };
+
+  const stopLocationTracking = () => {
+    // In a real app, you'd stop the watchPositionAsync subscription
+    // For simplicity, we'll just stop updating Firestore when offline
+  };
+
+  const subscribeToDeliveryRequests = () => {
+    if (unsubscribeRequestsRef.current) {
+      unsubscribeRequestsRef.current(); // Unsubscribe from previous listener
+    }
+    unsubscribeRequestsRef.current = firestoreService.subscribeToDeliveryRequests(
+      driverLocation, // Pass current driver location for distance filtering
+      (requests) => {
+        setNearbyRequests(requests);
+      }
+    );
   };
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDriverData();
+    if (isOnline) {
+      subscribeToDeliveryRequests(); // Re-subscribe to refresh requests
+    }
   };
 
   const handleToggleOnline = () => {
     const newStatus = !isOnline;
     setIsOnline(newStatus);
-    
     if (newStatus) {
-      // If going online, generate mock requests
-      generateMockRequests();
       Alert.alert('You are now online', 'You will receive delivery requests in your area.');
     } else {
-      // If going offline, clear requests
-      setNearbyRequests([]);
       Alert.alert('You are now offline', 'You will not receive any delivery requests.');
     }
   };
@@ -115,8 +211,17 @@ const HomeScreen = ({ navigation }) => {
     return `TZS ${price.toLocaleString()}`;
   };
 
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0066cc" />
+        <Text style={styles.loadingText}>Loading driver data...</Text>
+      </View>
+    );
+  }
+
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
@@ -128,8 +233,8 @@ const HomeScreen = ({ navigation }) => {
             {isOnline ? 'You are online' : 'You are offline'}
           </Text>
           <Text style={styles.statusDescription}>
-            {isOnline 
-              ? 'You are receiving delivery requests' 
+            {isOnline
+              ? 'You are receiving delivery requests'
               : 'Go online to receive delivery requests'}
           </Text>
         </View>
@@ -162,7 +267,7 @@ const HomeScreen = ({ navigation }) => {
       </View>
 
       {/* Weekly Summary */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.weeklySummary}
         onPress={() => navigation.navigate('EarningsTab')}>
         <View>
@@ -177,7 +282,7 @@ const HomeScreen = ({ navigation }) => {
         <Text style={styles.sectionTitle}>
           {isOnline ? 'Nearby Requests' : 'Go Online to See Requests'}
         </Text>
-        
+
         {isOnline && nearbyRequests.length === 0 && !isLoading && (
           <View style={styles.emptyRequests}>
             <Ionicons name="search-outline" size={40} color="#ccc" />
@@ -187,7 +292,7 @@ const HomeScreen = ({ navigation }) => {
             </Text>
           </View>
         )}
-        
+
         {isOnline && nearbyRequests.map((request) => (
           <TouchableOpacity
             key={request.id}
@@ -197,19 +302,19 @@ const HomeScreen = ({ navigation }) => {
               <View style={styles.requestDistance}>
                 <Ionicons name="navigate-outline" size={16} color="#0066cc" />
                 <Text style={styles.requestDistanceText}>
-                  {request.distance} km • {request.estimatedTime}
+                  {request.distance ? `${request.distance.toFixed(1)} km` : 'N/A'} • {request.estimatedTime || 'N/A'}
                 </Text>
               </View>
-              <Text style={styles.requestFare}>{formatPrice(request.fare)}</Text>
+              <Text style={styles.requestFare}>{formatPrice(request.fare || 0)}</Text>
             </View>
-            
+
             <View style={styles.requestDetails}>
               <View style={styles.locationRow}>
                 <View style={styles.locationIcon}>
                   <Ionicons name="locate" size={16} color="#0066cc" />
                 </View>
                 <Text style={styles.locationText} numberOfLines={1}>
-                  {request.pickupAddress}
+                  {request.pickupLocation?.address || 'N/A'}
                 </Text>
               </View>
               <View style={styles.routeDivider}>
@@ -220,16 +325,16 @@ const HomeScreen = ({ navigation }) => {
                   <Ionicons name="location" size={16} color="#ff6b6b" />
                 </View>
                 <Text style={styles.locationText} numberOfLines={1}>
-                  {request.dropoffAddress}
+                  {request.dropoffLocation?.address || 'N/A'}
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.requestFooter}>
               <View style={styles.packageInfo}>
                 <Ionicons name="cube-outline" size={16} color="#666" />
                 <Text style={styles.packageInfoText}>
-                  {request.packageSize === 'small' ? 'Small' : 
+                  {request.packageSize === 'small' ? 'Small' :
                    request.packageSize === 'medium' ? 'Medium' : 'Large'} package
                 </Text>
               </View>
@@ -246,6 +351,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#666',
   },
   statusContainer: {
     flexDirection: 'row',

@@ -137,4 +137,9 @@ dependencies {
 project.ext.vectoricons = [
         iconFontNames: [ 'Ionicons.ttf' ] // Add other font files if you use them
 ]
-apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+
+project.ext.react = [
+        enableHermes: false  // Switch to false
+]
+
+//apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"

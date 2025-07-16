@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,23 +6,82 @@ import {
   TouchableOpacity,
   Alert,
   BackHandler,
+  ActivityIndicator,
+  Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import firestoreService from '../../services/FirestoreService';
+import * as Location from 'expo-location';
 
 const NavigationScreen = ({ route, navigation }) => {
-  const { deliveryId, request, pickupCoordinates, dropoffCoordinates } = route.params;
-  
-  const [currentStep, setCurrentStep] = useState('to_pickup'); // to_pickup, arrived_pickup, to_dropoff, arrived_dropoff
-  const [driverLocation, setDriverLocation] = useState({
-    latitude: pickupCoordinates.latitude - 0.01,
-    longitude: pickupCoordinates.longitude - 0.01,
-  });
-  const [eta, setEta] = useState('10 min');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Handle back button to prevent accidental navigation away
+  const { deliveryId } = route.params;
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [deliveryData, setDeliveryData] = useState(null);
+  const [driverLocation, setDriverLocation] = useState(null);
+  const [customerInfo, setCustomerInfo] = useState(null);
+  const [currentStep, setCurrentStep] = useState(''); // 'to_pickup', 'arrived_pickup', 'to_dropoff', 'arrived_dropoff'
+  const [eta, setEta] = useState('Calculating ETA...');
+
+  const unsubscribeDeliveryRef = useRef(null);
+  const unsubscribeLocationRef = useRef(null);
+  const locationWatcherRef = useRef(null);
+
   useEffect(() => {
+    if (!deliveryId) {
+      Alert.alert('Error', 'Delivery ID is missing.');
+      navigation.goBack();
+      return;
+    }
+
+    const fetchAndSubscribeDelivery = async () => {
+      setIsLoading(true);
+      try {
+        // Initial fetch of delivery data
+        const initialDeliveryResult = await firestoreService.getDelivery(deliveryId);
+        if (initialDeliveryResult.success && initialDeliveryResult.delivery) {
+          const initialData = initialDeliveryResult.delivery;
+          setDeliveryData(initialData);
+          setCurrentStep(initialData.status); // Set initial step based on delivery status
+
+          // Fetch customer info
+          if (initialData.customerId) {
+            const customerResult = await firestoreService.getUserProfile(initialData.customerId);
+            if (customerResult.success) {
+              setCustomerInfo(customerResult.userProfile);
+            }
+          }
+
+          // Subscribe to real-time delivery updates
+          unsubscribeDeliveryRef.current = firestoreService.subscribeToDeliveryUpdates(deliveryId, (updatedDelivery) => {
+            if (updatedDelivery) {
+              setDeliveryData(updatedDelivery);
+              setCurrentStep(updatedDelivery.status);
+              // Update ETA based on actual location and destination
+              // This would involve a more complex routing API call
+            }
+          });
+
+          // Start driver location tracking
+          startLocationTracking(initialData.driverId);
+
+        } else {
+          Alert.alert('Error', initialDeliveryResult.error || 'Failed to load delivery details.');
+          navigation.goBack();
+        }
+      } catch (error) {
+        console.error('Error fetching delivery:', error);
+        Alert.alert('Error', 'An unexpected error occurred while loading delivery.');
+        navigation.goBack();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAndSubscribeDelivery();
+
+    // Handle back button to prevent accidental navigation away
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       Alert.alert(
         'Cancel Delivery?',
@@ -36,7 +95,8 @@ const NavigationScreen = ({ route, navigation }) => {
           {
             text: 'Yes, Cancel',
             style: 'destructive',
-            onPress: () => {
+            onPress: async () => {
+              await firestoreService.updateDeliveryStatus(deliveryId, 'cancelled');
               navigation.goBack();
               return true;
             },
@@ -45,114 +105,117 @@ const NavigationScreen = ({ route, navigation }) => {
       );
       return true;
     });
-    
-    return () => backHandler.remove();
-  }, []);
-  
-  // Simulate driver movement
-  useEffect(() => {
-    if (currentStep === 'to_pickup') {
-      // Simulate driver moving to pickup location
-      const interval = setInterval(() => {
-        setDriverLocation(prev => ({
-          latitude: prev.latitude + (pickupCoordinates.latitude - prev.latitude) * 0.2,
-          longitude: prev.longitude + (pickupCoordinates.longitude - prev.longitude) * 0.2,
-        }));
-        
-        // Check if driver is close to pickup
-        const distance = Math.sqrt(
-          Math.pow(driverLocation.latitude - pickupCoordinates.latitude, 2) +
-          Math.pow(driverLocation.longitude - pickupCoordinates.longitude, 2)
-        );
-        
-        if (distance < 0.001) {
-          clearInterval(interval);
-          setEta('Arrived');
-        } else {
-          const remainingMinutes = Math.ceil(distance * 1000);
-          setEta(`${remainingMinutes} min`);
-        }
-      }, 2000);
-      
-      return () => clearInterval(interval);
-    } else if (currentStep === 'to_dropoff') {
-      // Simulate driver moving to dropoff location
-      const interval = setInterval(() => {
-        setDriverLocation(prev => ({
-          latitude: prev.latitude + (dropoffCoordinates.latitude - prev.latitude) * 0.2,
-          longitude: prev.longitude + (dropoffCoordinates.longitude - prev.longitude) * 0.2,
-        }));
-        
-        // Check if driver is close to dropoff
-        const distance = Math.sqrt(
-          Math.pow(driverLocation.latitude - dropoffCoordinates.latitude, 2) +
-          Math.pow(driverLocation.longitude - dropoffCoordinates.longitude, 2)
-        );
-        
-        if (distance < 0.001) {
-          clearInterval(interval);
-          setEta('Arrived');
-        } else {
-          const remainingMinutes = Math.ceil(distance * 1000);
-          setEta(`${remainingMinutes} min`);
-        }
-      }, 2000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [currentStep, driverLocation]);
 
-  const handleNextStep = () => {
-    setIsLoading(true);
-    
-    // Simulate API call to update delivery status
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      if (currentStep === 'to_pickup') {
-        setCurrentStep('arrived_pickup');
-        setEta('Waiting for pickup');
-      } else if (currentStep === 'arrived_pickup') {
-        setCurrentStep('to_dropoff');
-        setEta('15 min');
-      } else if (currentStep === 'to_dropoff') {
-        setCurrentStep('arrived_dropoff');
-        setEta('Delivery complete');
-      } else if (currentStep === 'arrived_dropoff') {
-        // Navigate to delivery status screen for completion
-        navigation.replace('DeliveryStatus', {
-          deliveryId,
-          request,
-        });
+    return () => {
+      if (unsubscribeDeliveryRef.current) {
+        unsubscribeDeliveryRef.current();
       }
-    }, 1500);
+      if (unsubscribeLocationRef.current) {
+        unsubscribeLocationRef.current();
+      }
+      if (locationWatcherRef.current) {
+        locationWatcherRef.current.remove();
+      }
+      backHandler.remove();
+    };
+  }, [deliveryId]);
+
+  const startLocationTracking = async (driverId) => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Location access needed for navigation.');
+      return;
+    }
+
+    locationWatcherRef.current = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 5000, // Update every 5 seconds
+        distanceInterval: 10, // Update every 10 meters
+      },
+      (loc) => {
+        const newLocation = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        };
+        setDriverLocation(newLocation);
+        firestoreService.updateDriverLocation(driverId, newLocation);
+      }
+    );
+  };
+
+  const handleNextStep = async () => {
+    setIsLoading(true);
+    let newStatus = '';
+    let navigateToCompletion = false;
+
+    switch (currentStep) {
+      case 'accepted':
+        newStatus = 'arrived_pickup';
+        break;
+      case 'arrived_pickup':
+        newStatus = 'picked_up';
+        break;
+      case 'picked_up':
+        newStatus = 'in_transit';
+        break;
+      case 'in_transit':
+        newStatus = 'arrived_dropoff';
+        break;
+      case 'arrived_dropoff':
+        newStatus = 'delivered';
+        navigateToCompletion = true;
+        break;
+      default:
+        break;
+    }
+
+    if (newStatus) {
+      const result = await firestoreService.updateDeliveryStatus(deliveryId, newStatus);
+      if (result.success) {
+        if (navigateToCompletion) {
+          navigation.replace('DeliveryStatus', { deliveryId });
+        }
+      } else {
+        Alert.alert('Error', result.error || 'Failed to update delivery status.');
+      }
+    }
+    setIsLoading(false);
   };
 
   const getActionButtonText = () => {
     switch (currentStep) {
-      case 'to_pickup':
+      case 'accepted':
         return 'Arrived at Pickup';
       case 'arrived_pickup':
         return 'Package Picked Up';
-      case 'to_dropoff':
+      case 'picked_up':
+        return 'Start Delivery';
+      case 'in_transit':
         return 'Arrived at Dropoff';
       case 'arrived_dropoff':
         return 'Complete Delivery';
+      case 'delivered':
+        return 'Delivery Completed';
       default:
-        return 'Next';
+        return 'Next Step';
     }
   };
 
   const getStepTitle = () => {
     switch (currentStep) {
-      case 'to_pickup':
+      case 'accepted':
         return 'Navigating to Pickup';
       case 'arrived_pickup':
         return 'At Pickup Location';
-      case 'to_dropoff':
-        return 'Navigating to Dropoff';
+      case 'picked_up':
+        return 'En Route to Dropoff';
+      case 'in_transit':
+        return 'En Route to Dropoff';
       case 'arrived_dropoff':
         return 'At Dropoff Location';
+      case 'delivered':
+        return 'Delivery Complete';
       default:
         return 'Navigation';
     }
@@ -160,34 +223,64 @@ const NavigationScreen = ({ route, navigation }) => {
 
   const getStepInstructions = () => {
     switch (currentStep) {
-      case 'to_pickup':
+      case 'accepted':
         return 'Follow the route to the pickup location';
       case 'arrived_pickup':
         return 'Collect the package from the sender';
-      case 'to_dropoff':
-        return 'Follow the route to the dropoff location';
+      case 'picked_up':
+        return 'Proceed to the dropoff location';
+      case 'in_transit':
+        return 'Continue to the dropoff location';
       case 'arrived_dropoff':
         return 'Deliver the package to the recipient';
+      case 'delivered':
+        return 'Delivery successfully completed.';
       default:
         return '';
     }
   };
 
   const getMapRegion = () => {
-    if (currentStep === 'to_pickup' || currentStep === 'arrived_pickup') {
-      return {
-        latitude: (driverLocation.latitude + pickupCoordinates.latitude) / 2,
-        longitude: (driverLocation.longitude + pickupCoordinates.longitude) / 2,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      };
+    if (!deliveryData || !driverLocation) return null;
+
+    const pickupCoords = deliveryData.pickupLocation?.coordinates;
+    const dropoffCoords = deliveryData.dropoffLocation?.coordinates;
+
+    if (!pickupCoords || !dropoffCoords) return null;
+
+    let targetCoords = null;
+    if (currentStep === 'accepted' || currentStep === 'arrived_pickup') {
+      targetCoords = pickupCoords;
     } else {
+      targetCoords = dropoffCoords;
+    }
+
+    if (targetCoords && driverLocation) {
+      const midLat = (driverLocation.latitude + targetCoords.latitude) / 2;
+      const midLon = (driverLocation.longitude + targetCoords.longitude) / 2;
+      const latDelta = Math.abs(driverLocation.latitude - targetCoords.latitude) * 1.5;
+      const lonDelta = Math.abs(driverLocation.longitude - targetCoords.longitude) * 1.5;
+
       return {
-        latitude: (driverLocation.latitude + dropoffCoordinates.latitude) / 2,
-        longitude: (driverLocation.longitude + dropoffCoordinates.longitude) / 2,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
+        latitude: midLat,
+        longitude: midLon,
+        latitudeDelta: Math.max(0.02, latDelta),
+        longitudeDelta: Math.max(0.02, lonDelta),
       };
+    }
+    return null;
+  };
+
+  const getVehicleIcon = (vehicleType) => {
+    switch (vehicleType) {
+      case 'boda':
+        return 'motorcycle';
+      case 'bajaji':
+        return 'car';
+      case 'guta':
+        return 'truck';
+      default:
+        return 'car';
     }
   };
 
@@ -195,92 +288,115 @@ const NavigationScreen = ({ route, navigation }) => {
     return `TZS ${price.toLocaleString()}`;
   };
 
+  const handleCallCustomer = () => {
+    if (customerInfo?.phoneNumber) {
+      Linking.openURL(`tel:${customerInfo.phoneNumber}`);
+    } else {
+      Alert.alert('Error', 'Customer phone number not available.');
+    }
+  };
+
+  const handleMessageCustomer = () => {
+    if (customerInfo?.phoneNumber) {
+      Linking.openURL(`sms:${customerInfo.phoneNumber}`);
+    } else {
+      Alert.alert('Error', 'Customer phone number not available.');
+    }
+  };
+
+  if (isLoading || !deliveryData) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0066cc" />
+        <Text style={styles.loadingText}>Loading delivery details...</Text>
+      </View>
+    );
+  }
+
+  const pickupCoords = deliveryData.pickupLocation?.coordinates;
+  const dropoffCoords = deliveryData.dropoffLocation?.coordinates;
+  const mapCurrentRegion = getMapRegion();
+
   return (
     <View style={styles.container}>
       {/* Map View */}
-      <MapView
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        region={getMapRegion()}>
-        {/* Driver Marker */}
-        <Marker
-          coordinate={driverLocation}
-          title="You"
-          description="Your current location">
-          <View style={[styles.markerContainer, { backgroundColor: '#0066cc' }]}>
-            <Ionicons 
-              name={
-                request.vehicleType === 'boda' ? 'bicycle' : 
-                request.vehicleType === 'tuktuk' ? 'car' : 'car-sport'
-              } 
-              size={16} 
-              color="#fff" 
+      {mapCurrentRegion && (
+        <MapView
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          region={mapCurrentRegion}
+        >
+          {/* Driver Marker */}
+          {driverLocation && (
+            <Marker
+              coordinate={driverLocation}
+              title="You"
+              description="Your current location"
+            >
+              <View style={[styles.markerContainer, { backgroundColor: '#0066cc' }]}>
+                <Ionicons
+                  name={getVehicleIcon(deliveryData.vehicleType)}
+                  size={16}
+                  color="#fff"
+                />
+              </View>
+            </Marker>
+          )}
+
+          {/* Pickup Marker */}
+          {pickupCoords && (
+            <Marker
+              coordinate={pickupCoords}
+              title="Pickup"
+              description={deliveryData.pickupLocation?.address}
+            >
+              <View style={[
+                styles.markerContainer,
+                { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#e6f2ff' : '#ccc' }
+              ]}>
+                <Ionicons
+                  name="locate"
+                  size={16}
+                  color={(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#666'}
+                />
+              </View>
+            </Marker>
+          )}
+
+          {/* Dropoff Marker */}
+          {dropoffCoords && (
+            <Marker
+              coordinate={dropoffCoords}
+              title="Dropoff"
+              description={deliveryData.dropoffLocation?.address}
+            >
+              <View style={[
+                styles.markerContainer,
+                { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ffebee' : '#ccc' }
+              ]}>
+                <Ionicons
+                  name="location"
+                  size={16}
+                  color={(currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#666'}
+                />
+              </View>
+            </Marker>
+          )}
+
+          {/* Route Line */}
+          {driverLocation && pickupCoords && dropoffCoords && (
+            <Polyline
+              coordinates={[
+                driverLocation,
+                (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? pickupCoords : dropoffCoords,
+              ]}
+              strokeWidth={3}
+              strokeColor="#0066cc"
             />
-          </View>
-        </Marker>
-        
-        {/* Pickup Marker */}
-        <Marker
-          coordinate={pickupCoordinates}
-          title="Pickup"
-          description={request.pickupAddress}>
-          <View style={[
-            styles.markerContainer, 
-            { 
-              backgroundColor: (currentStep === 'to_pickup' || currentStep === 'arrived_pickup') 
-                ? '#e6f2ff' 
-                : '#ccc'
-            }
-          ]}>
-            <Ionicons 
-              name="locate" 
-              size={16} 
-              color={(currentStep === 'to_pickup' || currentStep === 'arrived_pickup') 
-                ? '#0066cc' 
-                : '#666'} 
-            />
-          </View>
-        </Marker>
-        
-        {/* Dropoff Marker */}
-        <Marker
-          coordinate={dropoffCoordinates}
-          title="Dropoff"
-          description={request.dropoffAddress}>
-          <View style={[
-            styles.markerContainer, 
-            { 
-              backgroundColor: (currentStep === 'to_dropoff' || currentStep === 'arrived_dropoff') 
-                ? '#ffebee' 
-                : '#ccc'
-            }
-          ]}>
-            <Ionicons 
-              name="location" 
-              size={16} 
-              color={(currentStep === 'to_dropoff' || currentStep === 'arrived_dropoff') 
-                ? '#ff6b6b' 
-                : '#666'} 
-            />
-          </View>
-        </Marker>
-        
-        {/* Route Line */}
-        {currentStep === 'to_pickup' || currentStep === 'arrived_pickup' ? (
-          <Polyline
-            coordinates={[driverLocation, pickupCoordinates]}
-            strokeWidth={3}
-            strokeColor="#0066cc"
-          />
-        ) : (
-          <Polyline
-            coordinates={[driverLocation, dropoffCoordinates]}
-            strokeWidth={3}
-            strokeColor="#0066cc"
-          />
-        )}
-      </MapView>
-      
+          )}
+        </MapView>
+      )}
+
       {/* Navigation Panel */}
       <View style={styles.navigationPanel}>
         <View style={styles.navigationHeader}>
@@ -290,25 +406,25 @@ const NavigationScreen = ({ route, navigation }) => {
             <Text style={styles.etaText}>{eta}</Text>
           </View>
         </View>
-        
+
         <Text style={styles.navigationInstructions}>{getStepInstructions()}</Text>
-        
+
         <View style={styles.addressContainer}>
           <View style={styles.addressCard}>
-            {(currentStep === 'to_pickup' || currentStep === 'arrived_pickup') ? (
+            {(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? (
               <>
                 <Text style={styles.addressLabel}>Pickup Location</Text>
-                <Text style={styles.addressText}>{request.pickupAddress}</Text>
+                <Text style={styles.addressText}>{deliveryData.pickupLocation?.address || 'N/A'}</Text>
               </>
             ) : (
               <>
                 <Text style={styles.addressLabel}>Dropoff Location</Text>
-                <Text style={styles.addressText}>{request.dropoffAddress}</Text>
+                <Text style={styles.addressText}>{deliveryData.dropoffLocation?.address || 'N/A'}</Text>
               </>
             )}
           </View>
         </View>
-        
+
         <View style={styles.deliveryInfo}>
           <View style={styles.deliveryInfoItem}>
             <Text style={styles.deliveryInfoLabel}>Order ID</Text>
@@ -317,31 +433,32 @@ const NavigationScreen = ({ route, navigation }) => {
           <View style={styles.deliveryInfoItem}>
             <Text style={styles.deliveryInfoLabel}>Package</Text>
             <Text style={styles.deliveryInfoValue}>
-              {request.packageSize === 'small' ? 'Small' : 
-               request.packageSize === 'medium' ? 'Medium' : 'Large'}
+              {deliveryData.packageSize === 'small' ? 'Small' :
+               deliveryData.packageSize === 'medium' ? 'Medium' : 'Large'}
             </Text>
           </View>
           <View style={styles.deliveryInfoItem}>
             <Text style={styles.deliveryInfoLabel}>Fare</Text>
-            <Text style={styles.deliveryInfoValue}>{formatPrice(request.fare)}</Text>
+            <Text style={styles.deliveryInfoValue}>{formatPrice(deliveryData.fareDetails?.total || 0)}</Text>
           </View>
         </View>
-        
+
         <TouchableOpacity
           style={[styles.actionButton, isLoading && styles.actionButtonDisabled]}
           onPress={handleNextStep}
-          disabled={isLoading}>
+          disabled={isLoading || currentStep === 'delivered'}
+        >
           <Text style={styles.actionButtonText}>
             {isLoading ? 'Processing...' : getActionButtonText()}
           </Text>
         </TouchableOpacity>
-        
+
         <View style={styles.contactContainer}>
-          <TouchableOpacity style={styles.contactButton}>
+          <TouchableOpacity style={styles.contactButton} onPress={handleCallCustomer}>
             <Ionicons name="call" size={20} color="#0066cc" />
             <Text style={styles.contactButtonText}>Call Customer</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.contactButton}>
+          <TouchableOpacity style={styles.contactButton} onPress={handleMessageCustomer}>
             <Ionicons name="chatbubble" size={20} color="#0066cc" />
             <Text style={styles.contactButtonText}>Message</Text>
           </TouchableOpacity>
@@ -355,6 +472,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#666',
   },
   map: {
     height: '60%',

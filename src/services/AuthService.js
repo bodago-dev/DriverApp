@@ -166,10 +166,7 @@ class AuthService {
             return { success: true, userProfile: this.userProfile };
         } catch (error) {
             console.error('Error creating user profile:', error);
-            return {
-                success: false,
-                error: this.getErrorMessage(error)
-            };
+            return { success: false, error: this.getErrorMessage(error) };
         }
     }
 
@@ -215,10 +212,7 @@ class AuthService {
             };
         } catch (error) {
             console.error('Error updating user profile:', error);
-            return {
-                success: false,
-                error: this.getErrorMessage(error)
-            };
+            return { success: false, error: this.getErrorMessage(error) };
         }
     }
 
@@ -249,10 +243,7 @@ class AuthService {
             return { success: true };
         } catch (error) {
             console.error('Error signing out:', error);
-            return {
-                success: false,
-                error: this.getErrorMessage(error)
-            };
+            return { success: false, error: this.getErrorMessage(error) };
         }
     }
 
@@ -269,6 +260,11 @@ class AuthService {
     // Check if user is authenticated
     isAuthenticated() {
         return !!this.user;
+    }
+
+    // Get user role
+    getUserRole() {
+        return this.userProfile ? this.userProfile.role : null;
     }
 
     // Format phone number to international format
@@ -315,3 +311,5 @@ class AuthService {
 // Create and export singleton instance
 const authService = new AuthService();
 export default authService;
+
+

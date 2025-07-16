@@ -44,7 +44,8 @@ const handleSaveProfile = async () => {
           lastName,
           phoneNumber: `+255${phoneNumber}`, // Save with country code
           email,
-          address
+          address,
+          role: 'rider', // Automatically assign 'rider' role
         });
 
         if (result.success) {
@@ -258,3 +259,5 @@ const styles = StyleSheet.create({
 });
 
 export default DriverProfileScreen;
+
+
