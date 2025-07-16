@@ -14,7 +14,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import firestoreService from '../../services/FirestoreService';
 import authService from '../../services/AuthService';
-import * as Location from 'expo-location'; // Assuming expo-location is used for driver location
+// import * as Location from 'expo-location'; // Assuming expo-location is used for driver location
 
 const HomeScreen = ({ navigation }) => {
   const [isOnline, setIsOnline] = useState(false);

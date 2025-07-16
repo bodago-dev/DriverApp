@@ -12,7 +12,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import firestoreService from '../../services/FirestoreService';
-import * as Location from 'expo-location';
+// import * as Location from 'expo-location';
 
 const NavigationScreen = ({ route, navigation }) => {
   const { deliveryId } = route.params;

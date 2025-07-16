@@ -142,4 +142,4 @@ project.ext.react = [
         enableHermes: false  // Switch to false
 ]
 
-//apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
