@@ -143,3 +143,8 @@ project.ext.react = [
 ]
 
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+
+dependencies {
+    // ... other dependencies
+    implementation project(":react-native-geolocation-service")
+}
