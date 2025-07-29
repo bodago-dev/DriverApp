@@ -1,11 +1,9 @@
-
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 
 plugins {
-    id 'com.google.gms.google-services'
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'com.facebook.react'
@@ -14,8 +12,8 @@ plugins {
 react {
 
     /* Folders */
-    //   The root of your project, i.e. where "package.json" lives. Default is '../..'
-    // root = file("../../")
+    //   The root of your project, i.e. where "package.json" lives. Default is '../../..'
+    // root = file("../../..")
     //   The folder where the react-native NPM package is. Default is ../../node_modules/react-native
     // reactNativeDir = file("../../node_modules/react-native")
     //   The folder where the react-native Codegen package is. Default is ../../node_modules/@react-native/codegen
@@ -131,6 +129,8 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+    implementation project(':react-native-geolocation-service')
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
 }
 
 
@@ -138,13 +138,6 @@ project.ext.vectoricons = [
         iconFontNames: [ 'Ionicons.ttf' ] // Add other font files if you use them
 ]
 
-project.ext.react = [
-        enableHermes: false  // Switch to false
-]
-
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
 
-dependencies {
-    // ... other dependencies
-    implementation project(":react-native-geolocation-service")
-}
+apply plugin: 'com.google.gms.google-services'

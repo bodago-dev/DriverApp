@@ -33,7 +33,11 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>BodaGo DriverApp needs your location to track deliveries and show nearby requests.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>BodaGo DriverApp needs your location to track deliveries even when the app is in the background.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>BodaGo DriverApp needs your location to track deliveries even when the app is in the background.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

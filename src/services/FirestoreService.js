@@ -92,7 +92,7 @@ class FirestoreService {
         ...requestData,
         status: 'pending',
         createdAt: serverTimestamp(),
-        expiresAt: new Date(Date.now() + 30000) // 30 seconds
+        expiresAt: new Date(Date.now() + 300000) // 300 seconds
       };
 
       const docRef = await addDoc(collection(this.db, 'delivery_requests'), deliveryRequest);
@@ -182,14 +182,17 @@ class FirestoreService {
     try {
       const delivery = {
         ...deliveryData,
-        status: 'accepted',
+        status: 'pending',
         createdAt: serverTimestamp(),
         timeline: {
-          accepted: serverTimestamp()
+          pending: serverTimestamp()
         }
       };
 
       const docRef = await addDoc(collection(this.db, 'deliveries'), delivery);
+
+      // Add searching status update
+      await this.updateDeliveryStatus(docRef.id, 'searching');
 
       return {
         success: true,
@@ -210,7 +213,6 @@ class FirestoreService {
         ...additionalData
       };
 
-      updateData[`timeline.${status}`] = serverTimestamp();
       await updateDoc(doc(this.db, 'deliveries', deliveryId), updateData);
       return { success: true };
     } catch (error) {
@@ -263,6 +265,23 @@ class FirestoreService {
   }
 
   // Driver Location Management
+  async assignDriverToDelivery(deliveryId, driverId) {
+    try {
+      const updateData = {
+        driverId,
+        status: 'accepted',
+        updatedAt: serverTimestamp(),
+        [`timeline.accepted`]: serverTimestamp()
+      };
+
+      await updateDoc(doc(this.db, 'deliveries', deliveryId), updateData);
+      return { success: true };
+    } catch (error) {
+      console.error('Error assigning driver:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   async updateDriverLocation(driverId, location) {
     try {
       const locationData = {
@@ -300,11 +319,13 @@ class FirestoreService {
 
   async setDriverOnlineStatus(driverId, isOnline) {
     try {
-      await updateDoc(doc(this.db, 'driver_locations', driverId), {
+      const locationData = {
         online: isOnline,
         timestamp: serverTimestamp()
-      });
+      };
 
+      // Use setDoc with merge instead of updateDoc
+      await setDoc(doc(this.db, 'driver_locations', driverId), locationData, { merge: true });
       return { success: true };
     } catch (error) {
       console.error('Error setting driver online status:', error);
@@ -344,29 +365,81 @@ class FirestoreService {
   }
 
   subscribeToDeliveryRequests(driverLocation, callback) {
+    if (!driverLocation) {
+      console.log('Driver location not available');
+      callback([], new Error('Driver location not available'));
+      return () => {};
+    }
+
+    console.log('Driver location', driverLocation);
+    console.log('Subscribing to delivery requests...');
+
     return onSnapshot(
       query(
         collection(this.db, 'delivery_requests'),
-        where('status', '==', 'pending')
+//        where('status', '==', 'pending'),
+//        where('expiresAt', '>', new Date())
       ),
       (snapshot) => {
         const requests = [];
         snapshot.forEach(doc => {
           const request = { id: doc.id, ...doc.data() };
-          const distance = this.calculateDistance(
-            driverLocation,
-            request.pickupLocation
-          );
 
-          if (distance <= 5) {
-            requests.push({ ...request, distance });
+          // Handle different pickup location formats
+          let pickupCoords = null;
+
+          // Case 1: Coordinates are in a nested coordinates object
+          if (request.pickupLocation?.coordinates) {
+            pickupCoords = request.pickupLocation.coordinates;
+          }
+          // Case 2: Direct GeoPoint or {latitude, longitude} object
+          else if (request.pickupLocation) {
+            pickupCoords = request.pickupLocation;
+          }
+
+          // Handle Firestore GeoPoint if needed
+          if (pickupCoords && typeof pickupCoords.latitude === 'function') {
+            pickupCoords = {
+              latitude: pickupCoords.latitude(),
+              longitude: pickupCoords.longitude()
+            };
+          }
+
+          // Verify we have valid coordinates
+          if (pickupCoords &&
+              typeof pickupCoords.latitude === 'number' &&
+              typeof pickupCoords.longitude === 'number') {
+
+            const distance = this.calculateDistance(
+              driverLocation,
+              pickupCoords
+            );
+
+            console.log("Distance calculated:", distance);
+            if (distance <= 50) { // 50km radius
+              requests.push({
+                ...request,
+                distance,
+                pickupLocation: {
+                  address: request.pickupLocation.address || request.pickupAddress || 'Address not available',
+                  coordinates: pickupCoords
+                }
+              });
+            }
+          } else {
+            console.warn('Invalid pickup location format:', request.pickupLocation);
           }
         });
         callback(requests);
+        console.log("Filtered requests:", requests);
       },
       (error) => {
-        console.error('Error in delivery requests subscription:', error);
-        callback([], error);
+        console.error('Delivery request subscription error:', error);
+        if (error.code === 'failed-precondition') {
+          callback([], new Error('Server configuration in progress. Please try again shortly.'));
+        } else {
+          callback([], error);
+        }
       }
     );
   }
@@ -411,6 +484,15 @@ class FirestoreService {
 
   // Utility Functions
   calculateDistance(location1, location2) {
+    console.log('Calculating distance between:', location1, location2);
+
+    // Verify both locations have numbers
+    if (typeof location1.latitude !== 'number' || typeof location1.longitude !== 'number' ||
+        typeof location2.latitude !== 'number' || typeof location2.longitude !== 'number') {
+      console.error('Invalid location coordinates:', { location1, location2 });
+      return NaN;
+    }
+
     const R = 6371; // Earth's radius in kilometers
     const dLat = this.toRadians(location2.latitude - location1.latitude);
     const dLon = this.toRadians(location2.longitude - location1.longitude);
@@ -423,6 +505,8 @@ class FirestoreService {
 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     const distance = R * c;
+
+    console.log('Distance result:', distance);
     return distance;
   }
 

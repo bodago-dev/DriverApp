@@ -1,25 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Switch,
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Platform,
+  Linking
 } from 'react-native';
+import Geolocation from 'react-native-geolocation-service';
+import { PERMISSIONS, request, check, RESULTS } from 'react-native-permissions';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import firestoreService from '../../services/FirestoreService';
 import authService from '../../services/AuthService';
-// import * as Location from 'expo-location'; // Assuming expo-location is used for driver location
 
 const HomeScreen = ({ navigation }) => {
   const [isOnline, setIsOnline] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLocationLoading, setIsLocationLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [stats, setStats] = useState({
     todayEarnings: 0,
     todayDeliveries: 0,
@@ -27,9 +31,19 @@ const HomeScreen = ({ navigation }) => {
     rating: 0,
   });
   const [nearbyRequests, setNearbyRequests] = useState([]);
-  const [driverId, setDriverId] = useState(null);
-  const [driverLocation, setDriverLocation] = useState(null);
-  const unsubscribeRequestsRef = useRef(null);
+  const [driverId, setDriverId] = useState<string | null>(null);
+  const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
+
+  const unsubscribeRequestsRef = useRef<(() => void) | null>(null);
+  const watchId = useRef<number | null>(null);
+
+  // Initialize Geolocation
+  useEffect(() => {
+    Geolocation.setRNConfiguration({
+      skipPermissionRequests: false,
+      authorizationLevel: 'whenInUse',
+    });
+  }, []);
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
@@ -38,41 +52,37 @@ const HomeScreen = ({ navigation }) => {
     } else {
       setIsLoading(false);
       Alert.alert('Error', 'Driver not authenticated. Please log in.');
-      // Optionally navigate to login screen
-      // navigation.navigate('AuthStack');
+      navigation.navigate('AuthStack');
     }
   }, []);
 
   useEffect(() => {
     if (driverId) {
       fetchDriverData();
-      // Initial check for online status from Firestore
-      const checkOnlineStatus = async () => {
-        const result = await firestoreService.getDriverLocation(driverId);
-        if (result.success && result.location && result.location.online) {
-          setIsOnline(true);
-        }
-      };
       checkOnlineStatus();
     }
   }, [driverId]);
 
   useEffect(() => {
     if (driverId && isOnline) {
-      // Start location tracking and subscribe to requests when online
-      startLocationTracking();
-      subscribeToDeliveryRequests();
+      const startTracking = async () => {
+        const hasPermission = await requestLocationPermission();
+        if (!hasPermission) {
+          setIsOnline(false);
+          return;
+        }
+        await startLocationTracking();
+      };
+      startTracking();
     } else {
-      // Stop location tracking and unsubscribe when offline
       stopLocationTracking();
       if (unsubscribeRequestsRef.current) {
         unsubscribeRequestsRef.current();
         unsubscribeRequestsRef.current = null;
       }
-      setNearbyRequests([]); // Clear requests when offline
+      setNearbyRequests([]);
     }
 
-    // Update driver online status in Firestore
     if (driverId) {
       firestoreService.setDriverOnlineStatus(driverId, isOnline);
     }
@@ -81,23 +91,29 @@ const HomeScreen = ({ navigation }) => {
       if (unsubscribeRequestsRef.current) {
         unsubscribeRequestsRef.current();
       }
+      stopLocationTracking();
     };
   }, [driverId, isOnline]);
+
+  const checkOnlineStatus = async () => {
+    const result = await firestoreService.getDriverLocation(driverId!);
+    if (result.success && result.location && result.location.online) {
+      setIsOnline(false);
+    }
+  };
 
   const fetchDriverData = async () => {
     setIsLoading(true);
     try {
-      const profileResult = await firestoreService.getUserProfile(driverId);
+      const profileResult = await firestoreService.getUserProfile(driverId!);
       if (profileResult.success && profileResult.userProfile) {
-        // Assuming stats like rating are part of the driver profile
         setStats(prev => ({
           ...prev,
           rating: profileResult.userProfile.rating || 0,
         }));
       }
 
-      // Fetch deliveries for earnings and count
-      const deliveriesResult = await firestoreService.getUserDeliveries(driverId, 'driver');
+      const deliveriesResult = await firestoreService.getUserDeliveries(driverId!, 'driver');
       if (deliveriesResult.success) {
         const allDeliveries = deliveriesResult.deliveries;
         const today = new Date();
@@ -110,13 +126,11 @@ const HomeScreen = ({ navigation }) => {
         allDeliveries.forEach(delivery => {
           const deliveryDate = delivery.createdAt?.toDate();
           if (deliveryDate) {
-            // Today's earnings and deliveries
             if (deliveryDate.toDateString() === today.toDateString() && delivery.status === 'delivered') {
               todayEarnings += delivery.fareDetails?.total || 0;
               todayDeliveries++;
             }
 
-            // Weekly earnings (simple last 7 days check)
             const oneWeekAgo = new Date(today);
             oneWeekAgo.setDate(today.getDate() - 7);
             if (deliveryDate >= oneWeekAgo && delivery.status === 'delivered') {
@@ -132,7 +146,6 @@ const HomeScreen = ({ navigation }) => {
           weeklyEarnings,
         }));
       }
-
     } catch (error) {
       console.error('Error fetching driver data:', error);
       Alert.alert('Error', 'Failed to fetch driver data.');
@@ -142,72 +155,274 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  const requestLocationPermission = async () => {
+    try {
+      const permission = Platform.select({
+        android: PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
+        ios: PERMISSIONS.IOS.LOCATION_WHEN_IN_USE,
+      });
+
+      if (!permission) {
+        console.log('No permission defined for this platform');
+        return false;
+      }
+
+      const permissionStatus = await check(permission);
+      console.log('Current permission status:', permissionStatus);
+
+      if (permissionStatus === RESULTS.GRANTED) {
+        return true;
+      }
+
+      const requestResult = await request(permission);
+      console.log('Permission request result:', requestResult);
+
+      if (requestResult === RESULTS.BLOCKED) {
+        Alert.alert(
+          'Permission Required',
+          'Location permission is required to receive delivery requests. Please enable it in settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+          ]
+        );
+        return false;
+      }
+
+      return requestResult === RESULTS.GRANTED;
+    } catch (err) {
+      console.warn('Error checking/requesting location permission:', err);
+      return false;
+    }
+  };
+
+  const checkLocationServices = async () => {
+    try {
+      // For Android, check if location permission is granted as proxy for services being enabled
+      if (Platform.OS === 'android') {
+        const hasPermission = await check(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
+        return hasPermission === RESULTS.GRANTED;
+      }
+      return true; // For iOS, assume services are enabled
+    } catch (error) {
+      console.warn('Location services check failed:', error);
+      return true; // Fallback to true
+    }
+  };
+
+  const getCurrentPosition = (): Promise<{latitude: number, longitude: number}> => {
+    return new Promise((resolve, reject) => {
+      Geolocation.getCurrentPosition(
+        (position) => {
+          if (!position?.coords) {
+            reject(new Error('No coordinates received'));
+            return;
+          }
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.error('Location error:', error);
+          reject(error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 10000
+        }
+      );
+    });
+  };
+
   const startLocationTracking = async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Location access needed to receive requests.');
+    console.log('Starting location tracking...');
+    try {
+      setIsLocationLoading(true);
+      setLocationError(null);
+
+      // Verify location services
+      const servicesEnabled = await checkLocationServices();
+      if (!servicesEnabled) {
+        Alert.alert(
+          'Location Services Required',
+          'Please enable location services to go online',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+          ]
+        );
+        setIsOnline(false);
+        return;
+      }
+
+      // Get initial location
+      let initialLocation;
+      try {
+        initialLocation = await getCurrentPosition();
+        console.log('Initial location obtained:', initialLocation);
+
+        // Update state and wait for it to complete
+        await new Promise<void>((resolve) => {
+            setDriverLocation(initialLocation);
+            // Use a small timeout to ensure state is updated
+            setTimeout(resolve, 100);
+        });
+
+        await firestoreService.updateDriverLocation(driverId!, initialLocation);
+      } catch (error) {
+        console.warn('Error getting initial location:', error);
+        // Use fallback location if needed
+        initialLocation = {
+          latitude: -6.7924, // Default Dar es Salaam coordinates
+          longitude: 39.2083
+        };
+        await new Promise<void>((resolve) => {
+            setDriverLocation(initialLocation);
+            setTimeout(resolve, 100);
+        });
+        await firestoreService.updateDriverLocation(driverId!, initialLocation);
+      }
+
+      // Start watching position updates
+      watchId.current = Geolocation.watchPosition(
+        (position) => {
+          if (!position?.coords) {
+            console.warn('Position update without coordinates');
+            return;
+          }
+          const newLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
+          setDriverLocation(newLocation);
+          firestoreService.updateDriverLocation(driverId!, newLocation);
+        },
+        (error) => {
+          console.error('Watch position error:', error);
+          setLocationError(error.message);
+          setIsOnline(false);
+        },
+        {
+          enableHighAccuracy: true,
+          distanceFilter: 10,
+          interval: 5000,
+          fastestInterval: 2000
+        }
+      );
+
+      // Now setup delivery request subscription
+      // Use the initialLocation directly since we know it's available
+      setupDeliverySubscription(initialLocation);
+    } catch (error) {
+      console.error('Location tracking failed:', error);
+      setLocationError(error.message || 'Failed to start tracking');
       setIsOnline(false);
-      return;
+    } finally {
+      setIsLocationLoading(false);
+    }
+  };
+
+  // Separate function for setting up the subscription
+  const setupDeliverySubscription = (location: {latitude: number, longitude: number}) => {
+    console.log('Setting up delivery subscription with location:', location);
+
+    // Clear any existing subscription
+    if (unsubscribeRequestsRef.current) {
+      unsubscribeRequestsRef.current();
+      unsubscribeRequestsRef.current = null;
     }
 
-    // Start background location updates if needed, or just foreground for now
-    Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 5000, // Update every 5 seconds
-        distanceInterval: 10, // Update every 10 meters
-      },
-      (loc) => {
-        const newLocation = {
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        };
-        setDriverLocation(newLocation);
-        firestoreService.updateDriverLocation(driverId, newLocation);
-      }
-    );
+    try {
+      unsubscribeRequestsRef.current = firestoreService.subscribeToDeliveryRequests(
+        {
+          latitude: location.latitude,
+          longitude: location.longitude
+        },
+        (requests) => {
+          if (!Array.isArray(requests)) {
+            console.warn('Invalid requests format:', requests);
+            return;
+          }
+          setNearbyRequests(requests);
+        },
+        (error) => {
+          console.error('Delivery request subscription error:', error);
+          setLocationError('Failed to load delivery requests');
+        }
+      );
+    } catch (error) {
+      console.error('Error setting up subscription:', error);
+      setLocationError('Failed to setup request subscription');
+    }
   };
 
   const stopLocationTracking = () => {
-    // In a real app, you'd stop the watchPositionAsync subscription
-    // For simplicity, we'll just stop updating Firestore when offline
-  };
-
-  const subscribeToDeliveryRequests = () => {
-    if (unsubscribeRequestsRef.current) {
-      unsubscribeRequestsRef.current(); // Unsubscribe from previous listener
+    if (watchId.current !== null) {
+      Geolocation.clearWatch(watchId.current);
+      watchId.current = null;
     }
-    unsubscribeRequestsRef.current = firestoreService.subscribeToDeliveryRequests(
-      driverLocation, // Pass current driver location for distance filtering
-      (requests) => {
-        setNearbyRequests(requests);
-      }
-    );
   };
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDriverData();
-    if (isOnline) {
-      subscribeToDeliveryRequests(); // Re-subscribe to refresh requests
+    if (isOnline && driverLocation) {
+      subscribeToDeliveryRequests();
     }
   };
 
-  const handleToggleOnline = () => {
+  const handleToggleOnline = async () => {
+    if (isLocationLoading) return;
+
     const newStatus = !isOnline;
     setIsOnline(newStatus);
+
     if (newStatus) {
-      Alert.alert('You are now online', 'You will receive delivery requests in your area.');
+      try {
+        const hasPermission = await requestLocationPermission();
+        if (!hasPermission) {
+          setIsOnline(false);
+          return;
+        }
+
+        await startLocationTracking();
+        Alert.alert('You are now online', 'You will receive delivery requests in your area.');
+      } catch (error) {
+        console.error('Error going online:', error);
+        setIsOnline(false);
+        Alert.alert('Error', 'Could not start location tracking');
+      }
     } else {
+      stopLocationTracking();
+      if (unsubscribeRequestsRef.current) {
+        unsubscribeRequestsRef.current();
+        unsubscribeRequestsRef.current = null;
+      }
+      setNearbyRequests([]);
       Alert.alert('You are now offline', 'You will not receive any delivery requests.');
     }
   };
 
-  const handleRequestPress = (request) => {
-    navigation.navigate('DeliveryRequest', { request });
+  const handleRequestPress = (request: any) => {
+    navigation.navigate('DeliveryRequest', {
+      request: {
+        id: request.id,
+        pickupAddress: request.pickupLocation?.address || 'N/A',
+        dropoffAddress: request.dropoffLocation?.address || 'N/A',
+        packageSize: request.packageDetails?.size || 'medium',
+        distance: request.distance?.toFixed(1) || 'N/A',
+        fare: request.fareDetails?.total || 0,
+        estimatedTime: request.estimatedTime || 'N/A',
+        // Add any other necessary fields from the request
+        ...request // Spread the rest of the request data
+      }
+    });
+    console.log('Request data...', request);
   };
 
-  const formatPrice = (price) => {
+  const formatPrice = (price: number) => {
     return `TZS ${price.toLocaleString()}`;
   };
 
@@ -226,7 +441,15 @@ const HomeScreen = ({ navigation }) => {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
       }>
-      {/* Online Status Toggle */}
+      {locationError && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{locationError}</Text>
+          <TouchableOpacity onPress={() => setLocationError(null)}>
+            <Ionicons name="close" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.statusContainer}>
         <View style={styles.statusContent}>
           <Text style={styles.statusText}>
@@ -244,10 +467,17 @@ const HomeScreen = ({ navigation }) => {
           ios_backgroundColor="#ccc"
           onValueChange={handleToggleOnline}
           value={isOnline}
+          disabled={isLocationLoading}
         />
       </View>
 
-      {/* Today's Stats */}
+      {isLocationLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#0066cc" />
+          <Text style={styles.loadingText}>Getting your location...</Text>
+        </View>
+      )}
+
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{formatPrice(stats.todayEarnings)}</Text>
@@ -266,7 +496,6 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Weekly Summary */}
       <TouchableOpacity
         style={styles.weeklySummary}
         onPress={() => navigation.navigate('EarningsTab')}>
@@ -277,7 +506,6 @@ const HomeScreen = ({ navigation }) => {
         <Ionicons name="chevron-forward" size={20} color="#666" />
       </TouchableOpacity>
 
-      {/* Nearby Requests */}
       <View style={styles.requestsContainer}>
         <Text style={styles.sectionTitle}>
           {isOnline ? 'Nearby Requests' : 'Go Online to See Requests'}
@@ -305,7 +533,7 @@ const HomeScreen = ({ navigation }) => {
                   {request.distance ? `${request.distance.toFixed(1)} km` : 'N/A'} • {request.estimatedTime || 'N/A'}
                 </Text>
               </View>
-              <Text style={styles.requestFare}>{formatPrice(request.fare || 0)}</Text>
+              <Text style={styles.requestFare}>{formatPrice(request.fareDetails.total || 0)}</Text>
             </View>
 
             <View style={styles.requestDetails}>
@@ -334,8 +562,8 @@ const HomeScreen = ({ navigation }) => {
               <View style={styles.packageInfo}>
                 <Ionicons name="cube-outline" size={16} color="#666" />
                 <Text style={styles.packageInfoText}>
-                  {request.packageSize === 'small' ? 'Small' :
-                   request.packageSize === 'medium' ? 'Medium' : 'Large'} package
+                  {request.packageDetails.size === 'small' ? 'Small' :
+                   request.packageDetails.size === 'medium' ? 'Medium' : 'Large'} package
                 </Text>
               </View>
                 <Text style={styles.viewButtonText}>View</Text>
@@ -362,6 +590,28 @@ const styles = StyleSheet.create({
     marginTop: 15,
     fontSize: 16,
     color: '#666',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    zIndex: 10,
+  },
+  errorBanner: {
+    backgroundColor: '#f44336',
+    padding: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#fff',
+    flex: 1,
   },
   statusContainer: {
     flexDirection: 'row',
@@ -548,12 +798,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666',
     marginLeft: 6,
-  },
-  viewButton: {
-    backgroundColor: '#e6f2ff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
   },
   viewButtonText: {
     fontSize: 12,

@@ -5,26 +5,78 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import locationService from '../../services/LocationService';
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  limit,
+  getDocs
+} from '@react-native-firebase/firestore';
 import firestoreService from '../../services/FirestoreService';
+import authService from '../../services/AuthService';
 
-const DeliveryRequestScreen = ({ route, navigation }) => {
+type DeliveryRequest = {
+  id: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  packageSize: 'small' | 'medium' | 'large';
+  distance: string;
+  fare: number;
+  estimatedTime: string;
+  pickupLocation?: {
+    coordinates: {
+      latitude: number;
+      longitude: number;
+    };
+    address: string;
+  };
+  dropoffLocation?: {
+    coordinates: {
+      latitude: number;
+      longitude: number;
+    };
+    address: string;
+  };
+  packageDetails?: {
+    size: 'small' | 'medium' | 'large';
+  };
+  fareDetails?: {
+    total: number;
+  };
+  paymentMethod?: string;
+};
+
+const DeliveryRequestScreen = ({ route, navigation }: {
+  route: { params: { request: DeliveryRequest } };
+  navigation: any;
+}) => {
   const { request } = route.params;
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
-  
+
+  // Use actual coordinates from the request if available
+  const pickupCoordinates = request.pickupLocation?.coordinates || {
+    latitude: -6.7924,
+    longitude: 39.2083,
+  };
+
+  const dropoffCoordinates = request.dropoffLocation?.coordinates || {
+    latitude: -6.8124,
+    longitude: 39.2583,
+  };
+
   // Countdown timer for request expiration
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => {
         setCountdown(countdown - 1);
       }, 1000);
-      
+
       return () => clearTimeout(timer);
     } else {
       // Request expired
@@ -41,32 +93,75 @@ const DeliveryRequestScreen = ({ route, navigation }) => {
     }
   }, [countdown]);
 
-  // Mock coordinates for map
-  const pickupCoordinates = {
-    latitude: -6.7924,
-    longitude: 39.2083,
-  };
-  
-  const dropoffCoordinates = {
-    latitude: -6.8124,
-    longitude: 39.2583,
-  };
-
-  const handleAccept = () => {
+  const handleAccept = async () => {
     setIsLoading(true);
-    
-    // Simulate API call to accept request
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // Navigate to navigation screen
+
+    try {
+      const currentUser = authService.getCurrentUser();
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const db = getFirestore();
+
+      // 1. Find the existing delivery document for this request
+      const deliveriesQuery = query(
+        collection(db, 'deliveries'),
+        where('requestId', '==', request.id),
+        limit(1)
+      );
+
+      const querySnapshot = await getDocs(deliveriesQuery);
+
+      if (querySnapshot.empty) {
+        throw new Error('No delivery found for this request');
+      }
+
+      const deliveryDoc = querySnapshot.docs[0];
+      const deliveryId = deliveryDoc.id;
+
+      // 2. Update the delivery request status and assign driver
+      const updateRequestResult = await firestoreService.updateDeliveryRequestStatus(
+        request.id,
+        'accepted',
+        currentUser.uid
+      );
+
+      if (!updateRequestResult.success) {
+        throw new Error(updateRequestResult.error || 'Failed to update request status');
+      }
+
+      // 3. Update the delivery document with driver assignment
+      const updateDeliveryResult = await firestoreService.updateDeliveryStatus(
+        deliveryId,
+        'accepted',
+        { driverId: currentUser.uid }
+      );
+
+      if (!updateDeliveryResult.success) {
+        throw new Error(updateDeliveryResult.error || 'Failed to update delivery status');
+      }
+
+      // 4. Navigate to NavigationScreen with the correct delivery ID
       navigation.replace('Navigation', {
-        deliveryId: `DEL${Math.floor(Math.random() * 10000)}`,
-        request,
-        pickupCoordinates,
-        dropoffCoordinates,
+        deliveryId: deliveryId,
+        request: {
+          ...request,
+          pickupAddress: request.pickupLocation?.address || request.pickupAddress,
+          dropoffAddress: request.dropoffLocation?.address || request.dropoffAddress,
+          packageSize: request.packageDetails?.size || request.packageSize,
+          fare: request.fareDetails?.total || request.fare
+        },
+        pickupCoordinates: pickupCoordinates,
+        dropoffCoordinates: dropoffCoordinates,
       });
-    }, 1500);
+
+    } catch (error) {
+      console.error('Error accepting request:', error);
+      Alert.alert('Error', error.message || 'Failed to accept delivery request');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDecline = () => {
@@ -87,7 +182,7 @@ const DeliveryRequestScreen = ({ route, navigation }) => {
     );
   };
 
-  const formatPrice = (price) => {
+  const formatPrice = (price: number) => {
     return `TZS ${price.toLocaleString()}`;
   };
 
@@ -107,35 +202,35 @@ const DeliveryRequestScreen = ({ route, navigation }) => {
         <Marker
           coordinate={pickupCoordinates}
           title="Pickup"
-          description={request.pickupAddress}>
+          description={request.pickupLocation?.address || request.pickupAddress}>
           <View style={[styles.markerContainer, { backgroundColor: '#e6f2ff' }]}>
             <Ionicons name="locate" size={16} color="#0066cc" />
           </View>
         </Marker>
-        
+
         {/* Dropoff Marker */}
         <Marker
           coordinate={dropoffCoordinates}
           title="Dropoff"
-          description={request.dropoffAddress}>
+          description={request.dropoffLocation?.address || request.dropoffAddress}>
           <View style={[styles.markerContainer, { backgroundColor: '#ffebee' }]}>
             <Ionicons name="location" size={16} color="#ff6b6b" />
           </View>
         </Marker>
       </MapView>
-      
+
       {/* Countdown Timer */}
       <View style={styles.countdownContainer}>
         <Text style={styles.countdownText}>Request expires in: {countdown}s</Text>
       </View>
-      
+
       {/* Request Details */}
       <ScrollView style={styles.detailsContainer}>
         <View style={styles.fareContainer}>
           <Text style={styles.fareLabel}>Delivery Fare</Text>
-          <Text style={styles.fareValue}>{formatPrice(request.fare)}</Text>
+          <Text style={styles.fareValue}>{formatPrice(request.fareDetails?.total || request.fare)}</Text>
         </View>
-        
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Route</Text>
           <View style={styles.routeInfo}>
@@ -144,7 +239,7 @@ const DeliveryRequestScreen = ({ route, navigation }) => {
                 <Ionicons name="locate" size={16} color="#0066cc" />
               </View>
               <Text style={styles.locationText} numberOfLines={1}>
-                {request.pickupAddress}
+                {request.pickupLocation?.address || request.pickupAddress}
               </Text>
             </View>
             <View style={styles.routeDivider}>
@@ -155,11 +250,11 @@ const DeliveryRequestScreen = ({ route, navigation }) => {
                 <Ionicons name="location" size={16} color="#ff6b6b" />
               </View>
               <Text style={styles.locationText} numberOfLines={1}>
-                {request.dropoffAddress}
+                {request.dropoffLocation?.address || request.dropoffAddress}
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.routeDetails}>
             <View style={styles.routeDetailItem}>
               <Ionicons name="navigate-outline" size={16} color="#666" />
@@ -175,31 +270,31 @@ const DeliveryRequestScreen = ({ route, navigation }) => {
             </View>
           </View>
         </View>
-        
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Package Details</Text>
           <View style={styles.packageDetails}>
             <View style={styles.packageDetailItem}>
               <Text style={styles.packageDetailLabel}>Size</Text>
               <Text style={styles.packageDetailValue}>
-                {request.packageSize === 'small' ? 'Small' : 
-                 request.packageSize === 'medium' ? 'Medium' : 'Large'}
+                {request.packageDetails?.size === 'small' ? 'Small' :
+                 request.packageDetails?.size === 'medium' ? 'Medium' : 'Large'}
               </Text>
             </View>
             <View style={styles.packageDetailItem}>
               <Text style={styles.packageDetailLabel}>Payment Method</Text>
-              <Text style={styles.packageDetailValue}>M-Pesa (Paid)</Text>
+              <Text style={styles.packageDetailValue}>{request.paymentMethod || 'M-Pesa (Paid)'}</Text>
             </View>
           </View>
         </View>
-        
+
         <View style={styles.actionsContainer}>
           <TouchableOpacity
             style={styles.declineButton}
             onPress={handleDecline}>
             <Text style={styles.declineButtonText}>Decline</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[styles.acceptButton, isLoading && styles.disabledButton]}
             onPress={handleAccept}

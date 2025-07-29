@@ -33,3 +33,5 @@ target 'DriverApp' do
     )
   end
 end
+
+pod 'react-native-geolocation-service', :path => '../node_modules/react-native-geolocation-service'
