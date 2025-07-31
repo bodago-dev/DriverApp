@@ -213,6 +213,8 @@ class FirestoreService {
         ...additionalData
       };
 
+      console.log('Updating delivery status:', updateData);
+
       await updateDoc(doc(this.db, 'deliveries', deliveryId), updateData);
       return { success: true };
     } catch (error) {

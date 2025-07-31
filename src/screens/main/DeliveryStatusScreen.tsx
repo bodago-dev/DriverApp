@@ -17,7 +17,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
   const [deliveryCompleted, setDeliveryCompleted] = useState(false);
   const [photoTaken, setPhotoTaken] = useState(false);
   const [signatureCollected, setSignatureCollected] = useState(false);
-  
+
   const handleTakePhoto = () => {
     // In a real app, this would open the camera
     // For demo purposes, we'll simulate taking a photo
@@ -105,7 +105,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
   const formatPrice = (price) => {
     return `TZS ${price.toLocaleString()}`;
   };
-
+  console.log('Request...', request);
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -194,7 +194,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Package Size</Text>
           <Text style={styles.summaryValue}>
-            {request.packageSize === 'small' ? 'Small' : 
+            {request.packageSize === 'small' ? 'Small' :
              request.packageSize === 'medium' ? 'Medium' : 'Large'}
           </Text>
         </View>
@@ -211,7 +211,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
         
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Payment Method</Text>
-          <Text style={styles.summaryValue}>M-Pesa (Paid)</Text>
+          <Text style={styles.summaryValue}>{request.paymentMethod}</Text>
         </View>
       </View>
       

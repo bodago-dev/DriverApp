@@ -14,7 +14,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import firestoreService from '../../services/FirestoreService';
 import Geolocation from 'react-native-geolocation-service';
-import { PERMISSIONS, request } from 'react-native-permissions';
+import { PERMISSIONS, request, check, RESULTS } from 'react-native-permissions';
 import locationService from '../../services/LocationService';
 
 // Default coordinates for Dar es Salaam with reasonable zoom level
@@ -46,6 +46,9 @@ const NavigationScreen = ({ route, navigation }) => {
   const calculateMapRegion = (): Region => {
     if (!driverLocation || !deliveryData) return DEFAULT_REGION;
 
+    console.log('Delivery Data...', deliveryData);
+    console.log('Driver location...', driverLocation);
+
     const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
       ? deliveryData.pickupLocation?.coordinates
       : deliveryData.dropoffLocation?.coordinates;
@@ -74,7 +77,7 @@ const NavigationScreen = ({ route, navigation }) => {
       const newRegion = calculateMapRegion();
       setMapRegion(newRegion);
 
-      if (mapRef.current) {
+      if ((mapRef.current && driverLocation && deliveryData)) {
         mapRef.current.animateToRegion(newRegion, 1000);
       }
     }
@@ -176,8 +179,8 @@ const NavigationScreen = ({ route, navigation }) => {
     if (!driverLocation || !delivery) return;
 
     const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? delivery.pickupLocation?.coordinates
-      : delivery.dropoffLocation?.coordinates;
+      ? deliveryData.pickupLocation?.coordinates
+      : deliveryData.dropoffLocation?.coordinates;
 
     if (destination) {
       const distance = locationService.calculateDistance(driverLocation, destination);
@@ -227,7 +230,14 @@ const NavigationScreen = ({ route, navigation }) => {
         longitude: position.coords.longitude,
       };
 
-      setDriverLocation(initialLocation);
+      console.log('Initial location:', initialLocation);
+
+      // Update state and wait for it to complete
+      await new Promise<void>((resolve) => {
+        setDriverLocation(initialLocation);
+        setTimeout(resolve, 100);
+      });
+
       await firestoreService.updateDriverLocation(driverId, initialLocation);
       setLocationError(null);
 
@@ -241,6 +251,7 @@ const NavigationScreen = ({ route, navigation }) => {
           setDriverLocation(newLocation);
           firestoreService.updateDriverLocation(driverId, newLocation);
           updateRouteCoordinates(newLocation);
+          console.log('Watch position updated', newLocation);
         },
         (error) => {
           console.error('Location tracking error:', error);
@@ -317,8 +328,9 @@ const NavigationScreen = ({ route, navigation }) => {
               pickupAddress: deliveryData.pickupLocation?.address || 'N/A',
               dropoffAddress: deliveryData.dropoffLocation?.address || 'N/A',
               packageSize: deliveryData.packageDetails?.size || 'medium',
-              distance: deliveryData.distance || 'N/A',
-              fare: deliveryData.fareDetails?.total || 0
+              distance: route.params.request.distance || 'N/A',
+              fare: deliveryData.fareDetails?.total || 0,
+              paymentMethod: deliveryData.paymentMethod || 'M-Pesa (Paid)',
             }
           });
         }
@@ -429,7 +441,7 @@ const NavigationScreen = ({ route, navigation }) => {
         region={mapRegion}
         initialRegion={DEFAULT_REGION}
         showsUserLocation={true}
-        followsUserLocation={true}
+        followsUserLocation={false}
         showsMyLocationButton={true}
         showsCompass={true}
         toolbarEnabled={true}
@@ -475,7 +487,7 @@ const NavigationScreen = ({ route, navigation }) => {
         )}
 
         {/* Route Line */}
-        {routeCoordinates.length > 1 && (
+        {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}
             strokeWidth={3}

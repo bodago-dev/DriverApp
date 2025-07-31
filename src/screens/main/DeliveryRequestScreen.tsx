@@ -150,7 +150,8 @@ const DeliveryRequestScreen = ({ route, navigation }: {
           pickupAddress: request.pickupLocation?.address || request.pickupAddress,
           dropoffAddress: request.dropoffLocation?.address || request.dropoffAddress,
           packageSize: request.packageDetails?.size || request.packageSize,
-          fare: request.fareDetails?.total || request.fare
+          fare: request.fareDetails?.total || request.fare,
+          distance: request.distance?.toFixed(1) || 'N/A',
         },
         pickupCoordinates: pickupCoordinates,
         dropoffCoordinates: dropoffCoordinates,
