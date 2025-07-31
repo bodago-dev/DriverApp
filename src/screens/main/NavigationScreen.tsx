@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -46,9 +46,6 @@ const NavigationScreen = ({ route, navigation }) => {
   const calculateMapRegion = (): Region => {
     if (!driverLocation || !deliveryData) return DEFAULT_REGION;
 
-    console.log('Delivery Data...', deliveryData);
-    console.log('Driver location...', driverLocation);
-
     const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
       ? deliveryData.pickupLocation?.coordinates
       : deliveryData.dropoffLocation?.coordinates;
@@ -71,17 +68,41 @@ const NavigationScreen = ({ route, navigation }) => {
     };
   };
 
+  // Update ETA calculation
+  const updateETA = useCallback((currentDelivery: any, currentDriverLocation: {latitude: number, longitude: number} | null) => {
+    if (!currentDriverLocation || !currentDelivery) {
+      setEta('Calculating ETA...');
+      return;
+    }
+
+    const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
+      ? currentDelivery.pickupLocation?.coordinates
+      : currentDelivery.dropoffLocation?.coordinates;
+
+    if (destination) {
+      const distance = locationService.calculateDistance(currentDriverLocation, destination);
+      const averageSpeed = 30; // km/h
+      const timeInMinutes = Math.round((distance / averageSpeed) * 60);
+      setEta(`${timeInMinutes} min (${distance.toFixed(1)} km)`);
+    } else {
+      setEta('Destination not available');
+    }
+  }, [currentStep]);
+
   // Update map region when location or step changes
   useEffect(() => {
     if (driverLocation && deliveryData) {
       const newRegion = calculateMapRegion();
       setMapRegion(newRegion);
 
-      if ((mapRef.current && driverLocation && deliveryData)) {
+      if (mapRef.current) {
         mapRef.current.animateToRegion(newRegion, 1000);
       }
+
+      // Update ETA whenever map region changes
+      updateETA(deliveryData, driverLocation);
     }
-  }, [driverLocation, currentStep, deliveryData]);
+  }, [driverLocation, currentStep, deliveryData, updateETA]);
 
   // Fetch delivery data and setup subscriptions
   useEffect(() => {
@@ -116,14 +137,14 @@ const NavigationScreen = ({ route, navigation }) => {
               if (updatedDelivery) {
                 setDeliveryData(updatedDelivery);
                 setCurrentStep(updatedDelivery.status);
-                updateETA(updatedDelivery);
+                updateETA(updatedDelivery, driverLocation);
               }
             }
           );
 
           // Start driver location tracking
           await startLocationTracking(initialData.driverId);
-          updateETA(initialData);
+          updateETA(initialData, driverLocation);
 
         } else {
           Alert.alert('Error', initialDeliveryResult.error || 'Failed to load delivery details.');
@@ -175,21 +196,6 @@ const NavigationScreen = ({ route, navigation }) => {
     );
   };
 
-  const updateETA = (delivery: any) => {
-    if (!driverLocation || !delivery) return;
-
-    const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? deliveryData.pickupLocation?.coordinates
-      : deliveryData.dropoffLocation?.coordinates;
-
-    if (destination) {
-      const distance = locationService.calculateDistance(driverLocation, destination);
-      const averageSpeed = 30; // km/h
-      const timeInMinutes = Math.round((distance / averageSpeed) * 60);
-      setEta(`${timeInMinutes} min (${distance.toFixed(1)} km)`);
-    }
-  };
-
   const requestLocationPermission = async () => {
     try {
       const granted = await request(
@@ -230,8 +236,6 @@ const NavigationScreen = ({ route, navigation }) => {
         longitude: position.coords.longitude,
       };
 
-      console.log('Initial location:', initialLocation);
-
       // Update state and wait for it to complete
       await new Promise<void>((resolve) => {
         setDriverLocation(initialLocation);
@@ -251,7 +255,7 @@ const NavigationScreen = ({ route, navigation }) => {
           setDriverLocation(newLocation);
           firestoreService.updateDriverLocation(driverId, newLocation);
           updateRouteCoordinates(newLocation);
-          console.log('Watch position updated', newLocation);
+          updateETA(deliveryData, newLocation);
         },
         (error) => {
           console.error('Location tracking error:', error);
@@ -375,15 +379,6 @@ const NavigationScreen = ({ route, navigation }) => {
       case 'arrived_dropoff': return 'Deliver the package to the recipient';
       case 'delivered': return 'Delivery successfully completed';
       default: return '';
-    }
-  };
-
-  const getVehicleIcon = (vehicleType?: string) => {
-    switch (vehicleType) {
-      case 'boda': return 'motorcycle';
-      case 'bajaji': return 'car';
-      case 'guta': return 'truck';
-      default: return 'car';
     }
   };
 
