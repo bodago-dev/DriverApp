@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -37,20 +37,79 @@ const NavigationScreen = ({ route, navigation }) => {
   const [routeCoordinates, setRouteCoordinates] = useState<{latitude: number, longitude: number}[]>([]);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [shouldAnimateMap, setShouldAnimateMap] = useState(true);
+  const [lastStep, setLastStep] = useState('');
+  const [shouldAnimateRegion, setShouldAnimateRegion] = useState(true);
 
   const unsubscribeDeliveryRef = useRef<() => void>();
   const watchId = useRef<number>();
   const mapRef = useRef<MapView>(null);
 
+  // Memoized components
+    const MemoizedMarker = useMemo(() => React.memo(({ coordinate, title, description, icon }: any) => (
+      <Marker coordinate={coordinate} title={title} description={description}>
+        {icon}
+      </Marker>
+    )), []);
+
+  // Helper function to extract coordinates from location object
+  const getCoordinates = (location: any) => {
+    if (!location) return null;
+
+    // If coordinates are nested
+    if (location.coordinates) {
+      return location.coordinates;
+    }
+
+    // If coordinates are direct properties
+    if (location.latitude && location.longitude) {
+      return location;
+    }
+
+    // Handle Firestore GeoPoint
+    if (typeof location.latitude === 'function') {
+      return {
+        latitude: location.latitude(),
+        longitude: location.longitude()
+      };
+    }
+
+    return null;
+  };
+
+const calculateZoomLevel = (region: Region) => {
+  const angle = region.longitudeDelta;
+  const zoom = Math.round(Math.log(360 / angle) / Math.LN2);
+  return Math.min(zoom, 18);
+};
+
+const shouldAnimateForStepChange = (step: string) => {
+  return (lastStep === 'arrived_pickup' && step === 'picked_up') ||
+         (lastStep === 'arrived_dropoff' && step === 'delivered');
+};
+
   // Calculate the optimal map region to show both driver and destination
   const calculateMapRegion = (): Region => {
-    if (!driverLocation || !deliveryData) return DEFAULT_REGION;
+    if (!driverLocation || !deliveryData) {
+      console.log('Returning DEFAULT_REGION due to missing driverLocation or deliveryData');
+      return DEFAULT_REGION;
+    }
 
-    const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? deliveryData.pickupLocation?.coordinates
-      : deliveryData.dropoffLocation?.coordinates;
+    let destination;
 
-    if (!destination) return DEFAULT_REGION;
+    if (currentStep === 'accepted' || currentStep === 'arrived_pickup') {
+      destination = getCoordinates(deliveryData.pickupLocation);
+    } else {
+      destination = getCoordinates(deliveryData.dropoffLocation);
+    }
+
+    console.log('Destination coordinates:', destination);
+    console.log('Driver coordinates:', driverLocation);
+
+    if (!destination || !driverLocation.latitude || !driverLocation.longitude) {
+      console.log('Returning DEFAULT_REGION due to invalid coordinates');
+      return DEFAULT_REGION;
+    }
 
     // Calculate midpoint between driver and destination
     const midLat = (driverLocation.latitude + destination.latitude) / 2;
@@ -60,12 +119,17 @@ const NavigationScreen = ({ route, navigation }) => {
     const latDelta = Math.abs(driverLocation.latitude - destination.latitude) * 1.8;
     const lonDelta = Math.abs(driverLocation.longitude - destination.longitude) * 1.8;
 
-    return {
+    // Ensure minimum deltas to prevent zooming too far in
+    const minDelta = 0.01;
+    const calculatedRegion = {
       latitude: midLat,
       longitude: midLon,
-      latitudeDelta: Math.max(0.05, Math.min(0.5, latDelta)),
-      longitudeDelta: Math.max(0.05, Math.min(0.5, lonDelta)),
+      latitudeDelta: Math.max(minDelta, latDelta),
+      longitudeDelta: Math.max(minDelta, lonDelta),
     };
+
+    console.log('Calculated region:', calculatedRegion);
+    return calculatedRegion;
   };
 
   // Update ETA calculation
@@ -76,8 +140,8 @@ const NavigationScreen = ({ route, navigation }) => {
     }
 
     const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? currentDelivery.pickupLocation?.coordinates
-      : currentDelivery.dropoffLocation?.coordinates;
+      ? getCoordinates(currentDelivery.pickupLocation)
+      : getCoordinates(currentDelivery.dropoffLocation);
 
     if (destination) {
       const distance = locationService.calculateDistance(currentDriverLocation, destination);
@@ -95,14 +159,51 @@ const NavigationScreen = ({ route, navigation }) => {
       const newRegion = calculateMapRegion();
       setMapRegion(newRegion);
 
-      if (mapRef.current) {
-        mapRef.current.animateToRegion(newRegion, 1000);
-      }
+      // Only animate if:
+      // 1. It's the initial load OR
+      // 2. The driver moved significantly OR
+      // 3. We explicitly want to animate
+      const shouldAnimate =
+        lastStep === '' ||
+        shouldAnimateRegion ||
+        (currentStep !== lastStep && shouldAnimateForStepChange(currentStep));
 
-      // Update ETA whenever map region changes
-      updateETA(deliveryData, driverLocation);
+      if (mapRef.current && shouldAnimate) {
+        mapRef.current.animateToRegion(newRegion, 500); // Reduced animation time
+      } else if (mapRef.current) {
+        mapRef.current.setCamera({
+          center: {
+            latitude: newRegion.latitude,
+            longitude: newRegion.longitude,
+          },
+          zoom: calculateZoomLevel(newRegion),
+        }, { duration: 300 }); // Smoother camera movement
+      }
     }
-  }, [driverLocation, currentStep, deliveryData, updateETA]);
+  }, [driverLocation, currentStep, deliveryData]);
+
+  // Update route coordinates when location changes
+  const updateRouteCoordinates = useCallback((currentLocation: {latitude: number, longitude: number}) => {
+    if (!deliveryData) return;
+
+    const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
+      ? getCoordinates(deliveryData.pickupLocation)
+      : getCoordinates(deliveryData.dropoffLocation);
+
+    if (destination) {
+      setRouteCoordinates([currentLocation, destination]);
+
+      const newRegion = {
+        latitude: (currentLocation.latitude + destination.latitude) / 2,
+        longitude: (currentLocation.longitude + destination.longitude) / 2,
+        latitudeDelta: Math.abs(currentLocation.latitude - destination.latitude) * 1.8,
+        longitudeDelta: Math.abs(currentLocation.longitude - destination.longitude) * 1.8,
+      };
+
+      setMapRegion(newRegion);
+      setShouldAnimateMap(true); // Enable animation for this update
+    }
+  }, [deliveryData, currentStep]);
 
   // Fetch delivery data and setup subscriptions
   useEffect(() => {
@@ -277,18 +378,6 @@ const NavigationScreen = ({ route, navigation }) => {
     }
   };
 
-  const updateRouteCoordinates = (currentLocation: {latitude: number, longitude: number}) => {
-    if (!deliveryData) return;
-
-    const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? deliveryData.pickupLocation?.coordinates
-      : deliveryData.dropoffLocation?.coordinates;
-
-    if (destination) {
-      setRouteCoordinates([currentLocation, destination]);
-    }
-  };
-
   const handleNextStep = async () => {
     if (locationError) {
       Alert.alert('Location Error', 'Please enable location services to proceed.');
@@ -296,6 +385,9 @@ const NavigationScreen = ({ route, navigation }) => {
     }
 
     setIsLoading(true);
+    setLastStep(currentStep);
+    setShouldAnimateRegion(false);
+
     let newStatus = '';
     let navigateToCompletion = false;
 
@@ -406,8 +498,8 @@ const NavigationScreen = ({ route, navigation }) => {
     if (!deliveryData) return;
 
     const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? deliveryData.pickupLocation?.coordinates
-      : deliveryData.dropoffLocation?.coordinates;
+      ? getCoordinates(deliveryData.pickupLocation)
+      : getCoordinates(deliveryData.dropoffLocation);
 
     if (destination) {
       const label = currentStep === 'accepted' || currentStep === 'arrived_pickup'
@@ -437,16 +529,22 @@ const NavigationScreen = ({ route, navigation }) => {
         initialRegion={DEFAULT_REGION}
         showsUserLocation={true}
         followsUserLocation={false}
-        showsMyLocationButton={true}
-        showsCompass={true}
-        toolbarEnabled={true}
+        onRegionChangeComplete={(region) => {
+          setMapRegion(region);
+          setShouldAnimateRegion(false);
+        }}
+        // Add these props for smoother transitions
+        moveOnMarkerPress={false}
+        loadingEnabled={true}
+        loadingIndicatorColor="#0066cc"
+        loadingBackgroundColor="#f8f9fa"
       >
         {/* Pickup Marker */}
-        {deliveryData.pickupLocation?.coordinates && (
+        {getCoordinates(deliveryData.pickupLocation) && (
           <Marker
-            coordinate={deliveryData.pickupLocation.coordinates}
+            coordinate={getCoordinates(deliveryData.pickupLocation)}
             title="Pickup"
-            description={deliveryData.pickupLocation.address}
+            description={deliveryData.pickupLocation?.address}
           >
             <View style={[
               styles.markerContainer,
@@ -462,11 +560,11 @@ const NavigationScreen = ({ route, navigation }) => {
         )}
 
         {/* Dropoff Marker */}
-        {deliveryData.dropoffLocation?.coordinates && (
+        {getCoordinates(deliveryData.dropoffLocation) && (
           <Marker
-            coordinate={deliveryData.dropoffLocation.coordinates}
+            coordinate={getCoordinates(deliveryData.dropoffLocation)}
             title="Dropoff"
-            description={deliveryData.dropoffLocation.address}
+            description={deliveryData.dropoffLocation?.address}
           >
             <View style={[
               styles.markerContainer,
@@ -482,11 +580,12 @@ const NavigationScreen = ({ route, navigation }) => {
         )}
 
         {/* Route Line */}
-        {routeCoordinates.length > 0 && (
+        {routeCoordinates.length > 1 && (
           <Polyline
             coordinates={routeCoordinates}
             strokeWidth={3}
             strokeColor="#0066cc"
+            lineDashPattern={[1]}
           />
         )}
       </MapView>

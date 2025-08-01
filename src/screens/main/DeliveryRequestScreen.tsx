@@ -153,8 +153,8 @@ const DeliveryRequestScreen = ({ route, navigation }: {
           fare: request.fareDetails?.total || request.fare,
           distance: request.distance?.toFixed(1) || 'N/A',
         },
-        pickupCoordinates: pickupCoordinates,
-        dropoffCoordinates: dropoffCoordinates,
+        pickupCoordinates: getCoordinates(request.pickupLocation),
+        dropoffCoordinates: getCoordinates(request.dropoffLocation),
       });
 
     } catch (error) {
@@ -182,6 +182,31 @@ const DeliveryRequestScreen = ({ route, navigation }: {
       ]
     );
   };
+
+  const getCoordinates = (location: any) => {
+    if (!location) return null;
+
+    // If coordinates are nested
+    if (location.coordinates) {
+      return location.coordinates;
+    }
+
+    // If coordinates are direct properties
+    if (location.latitude && location.longitude) {
+      return location;
+    }
+
+    // Handle Firestore GeoPoint
+    if (typeof location.latitude === 'function') {
+      return {
+        latitude: location.latitude(),
+        longitude: location.longitude()
+      };
+    }
+
+    return null;
+  };
+
 
   const formatPrice = (price: number) => {
     return `TZS ${price.toLocaleString()}`;
