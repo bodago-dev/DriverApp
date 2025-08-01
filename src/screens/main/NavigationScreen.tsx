@@ -45,26 +45,16 @@ const NavigationScreen = ({ route, navigation }) => {
   const watchId = useRef<number>();
   const mapRef = useRef<MapView>(null);
 
-  // Memoized components
-    const MemoizedMarker = useMemo(() => React.memo(({ coordinate, title, description, icon }: any) => (
-      <Marker coordinate={coordinate} title={title} description={description}>
-        {icon}
-      </Marker>
-    )), []);
+  // Memoized Marker component
+  const MemoizedMarker = useMemo(() => React.memo(({ coordinate, title, description, icon }: any) => (
+    <Marker coordinate={coordinate} title={title} description={description}>
+      {icon}
+    </Marker>
+  )), []);
 
   // Helper function to extract coordinates from location object
   const getCoordinates = (location: any) => {
     if (!location) return null;
-
-    // If coordinates are nested
-    if (location.coordinates) {
-      return location.coordinates;
-    }
-
-    // If coordinates are direct properties
-    if (location.latitude && location.longitude) {
-      return location;
-    }
 
     // Handle Firestore GeoPoint
     if (typeof location.latitude === 'function') {
@@ -74,24 +64,36 @@ const NavigationScreen = ({ route, navigation }) => {
       };
     }
 
+    // Handle nested coordinates
+    if (location.coordinates) {
+      return location.coordinates;
+    }
+
+    // Handle direct coordinates
+    if (location.latitude && location.longitude) {
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude
+      };
+    }
+
     return null;
   };
 
-const calculateZoomLevel = (region: Region) => {
-  const angle = region.longitudeDelta;
-  const zoom = Math.round(Math.log(360 / angle) / Math.LN2);
-  return Math.min(zoom, 18);
-};
+  const calculateZoomLevel = (region: Region) => {
+    const angle = region.longitudeDelta;
+    const zoom = Math.round(Math.log(360 / angle) / Math.LN2);
+    return Math.min(zoom, 18);
+  };
 
-const shouldAnimateForStepChange = (step: string) => {
-  return (lastStep === 'arrived_pickup' && step === 'picked_up') ||
-         (lastStep === 'arrived_dropoff' && step === 'delivered');
-};
+  const shouldAnimateForStepChange = (step: string) => {
+    return (lastStep === 'arrived_pickup' && step === 'picked_up') ||
+           (lastStep === 'arrived_dropoff' && step === 'delivered');
+  };
 
   // Calculate the optimal map region to show both driver and destination
   const calculateMapRegion = (): Region => {
     if (!driverLocation || !deliveryData) {
-      console.log('Returning DEFAULT_REGION due to missing driverLocation or deliveryData');
       return DEFAULT_REGION;
     }
 
@@ -103,11 +105,7 @@ const shouldAnimateForStepChange = (step: string) => {
       destination = getCoordinates(deliveryData.dropoffLocation);
     }
 
-    console.log('Destination coordinates:', destination);
-    console.log('Driver coordinates:', driverLocation);
-
     if (!destination || !driverLocation.latitude || !driverLocation.longitude) {
-      console.log('Returning DEFAULT_REGION due to invalid coordinates');
       return DEFAULT_REGION;
     }
 
@@ -121,15 +119,12 @@ const shouldAnimateForStepChange = (step: string) => {
 
     // Ensure minimum deltas to prevent zooming too far in
     const minDelta = 0.01;
-    const calculatedRegion = {
+    return {
       latitude: midLat,
       longitude: midLon,
       latitudeDelta: Math.max(minDelta, latDelta),
       longitudeDelta: Math.max(minDelta, lonDelta),
     };
-
-    console.log('Calculated region:', calculatedRegion);
-    return calculatedRegion;
   };
 
   // Update ETA calculation
@@ -159,17 +154,13 @@ const shouldAnimateForStepChange = (step: string) => {
       const newRegion = calculateMapRegion();
       setMapRegion(newRegion);
 
-      // Only animate if:
-      // 1. It's the initial load OR
-      // 2. The driver moved significantly OR
-      // 3. We explicitly want to animate
       const shouldAnimate =
         lastStep === '' ||
         shouldAnimateRegion ||
         (currentStep !== lastStep && shouldAnimateForStepChange(currentStep));
 
       if (mapRef.current && shouldAnimate) {
-        mapRef.current.animateToRegion(newRegion, 500); // Reduced animation time
+        mapRef.current.animateToRegion(newRegion, 500);
       } else if (mapRef.current) {
         mapRef.current.setCamera({
           center: {
@@ -177,7 +168,7 @@ const shouldAnimateForStepChange = (step: string) => {
             longitude: newRegion.longitude,
           },
           zoom: calculateZoomLevel(newRegion),
-        }, { duration: 300 }); // Smoother camera movement
+        }, { duration: 300 });
       }
     }
   }, [driverLocation, currentStep, deliveryData]);
@@ -192,16 +183,7 @@ const shouldAnimateForStepChange = (step: string) => {
 
     if (destination) {
       setRouteCoordinates([currentLocation, destination]);
-
-      const newRegion = {
-        latitude: (currentLocation.latitude + destination.latitude) / 2,
-        longitude: (currentLocation.longitude + destination.longitude) / 2,
-        latitudeDelta: Math.abs(currentLocation.latitude - destination.latitude) * 1.8,
-        longitudeDelta: Math.abs(currentLocation.longitude - destination.longitude) * 1.8,
-      };
-
-      setMapRegion(newRegion);
-      setShouldAnimateMap(true); // Enable animation for this update
+      setShouldAnimateMap(true);
     }
   }, [deliveryData, currentStep]);
 
@@ -216,14 +198,12 @@ const shouldAnimateForStepChange = (step: string) => {
     const fetchAndSubscribeDelivery = async () => {
       setIsLoading(true);
       try {
-        // Initial fetch of delivery data
         const initialDeliveryResult = await firestoreService.getDelivery(deliveryId);
         if (initialDeliveryResult.success && initialDeliveryResult.delivery) {
           const initialData = initialDeliveryResult.delivery;
           setDeliveryData(initialData);
           setCurrentStep(initialData.status || 'accepted');
 
-          // Fetch customer info
           if (initialData.customerId) {
             const customerResult = await firestoreService.getUserProfile(initialData.customerId);
             if (customerResult.success) {
@@ -231,7 +211,6 @@ const shouldAnimateForStepChange = (step: string) => {
             }
           }
 
-          // Subscribe to real-time delivery updates
           unsubscribeDeliveryRef.current = firestoreService.subscribeToDeliveryUpdates(
             deliveryId,
             (updatedDelivery) => {
@@ -243,10 +222,8 @@ const shouldAnimateForStepChange = (step: string) => {
             }
           );
 
-          // Start driver location tracking
           await startLocationTracking(initialData.driverId);
           updateETA(initialData, driverLocation);
-
         } else {
           Alert.alert('Error', initialDeliveryResult.error || 'Failed to load delivery details.');
           navigation.goBack();
@@ -262,7 +239,6 @@ const shouldAnimateForStepChange = (step: string) => {
 
     fetchAndSubscribeDelivery();
 
-    // Handle back button
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       handleBackPress();
       return true;
@@ -320,7 +296,6 @@ const shouldAnimateForStepChange = (step: string) => {
         return false;
       }
 
-      // Get initial position
       const position = await new Promise<Geolocation.GeoPosition>((resolve, reject) => {
         Geolocation.getCurrentPosition(
           resolve,
@@ -337,7 +312,6 @@ const shouldAnimateForStepChange = (step: string) => {
         longitude: position.coords.longitude,
       };
 
-      // Update state and wait for it to complete
       await new Promise<void>((resolve) => {
         setDriverLocation(initialLocation);
         setTimeout(resolve, 100);
@@ -346,7 +320,6 @@ const shouldAnimateForStepChange = (step: string) => {
       await firestoreService.updateDriverLocation(driverId, initialLocation);
       setLocationError(null);
 
-      // Watch for position updates
       watchId.current = Geolocation.watchPosition(
         (position) => {
           const newLocation = {
@@ -533,50 +506,51 @@ const shouldAnimateForStepChange = (step: string) => {
           setMapRegion(region);
           setShouldAnimateRegion(false);
         }}
-        // Add these props for smoother transitions
         moveOnMarkerPress={false}
         loadingEnabled={true}
         loadingIndicatorColor="#0066cc"
         loadingBackgroundColor="#f8f9fa"
       >
         {/* Pickup Marker */}
-        {getCoordinates(deliveryData.pickupLocation) && (
-          <Marker
+        {deliveryData.pickupLocation && (
+          <MemoizedMarker
             coordinate={getCoordinates(deliveryData.pickupLocation)}
             title="Pickup"
-            description={deliveryData.pickupLocation?.address}
-          >
-            <View style={[
-              styles.markerContainer,
-              { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#e6f2ff' : '#ccc' }
-            ]}>
-              <Ionicons
-                name="locate"
-                size={16}
-                color={(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#666'}
-              />
-            </View>
-          </Marker>
+            description={deliveryData.pickupLocation?.address || 'Pickup location'}
+            icon={
+              <View style={[
+                styles.markerContainer,
+                { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#e6f2ff' : '#ccc' }
+              ]}>
+                <Ionicons
+                  name="locate"
+                  size={16}
+                  color={(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#666'}
+                />
+              </View>
+            }
+          />
         )}
 
         {/* Dropoff Marker */}
-        {getCoordinates(deliveryData.dropoffLocation) && (
-          <Marker
+        {deliveryData.dropoffLocation && (
+          <MemoizedMarker
             coordinate={getCoordinates(deliveryData.dropoffLocation)}
             title="Dropoff"
-            description={deliveryData.dropoffLocation?.address}
-          >
-            <View style={[
-              styles.markerContainer,
-              { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ffebee' : '#ccc' }
-            ]}>
-              <Ionicons
-                name="location"
-                size={16}
-                color={(currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#666'}
-              />
-            </View>
-          </Marker>
+            description={deliveryData.dropoffLocation?.address || 'Dropoff location'}
+            icon={
+              <View style={[
+                styles.markerContainer,
+                { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ffebee' : '#ccc' }
+              ]}>
+                <Ionicons
+                  name="location"
+                  size={16}
+                  color={(currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#666'}
+                />
+              </View>
+            }
+          />
         )}
 
         {/* Route Line */}
@@ -703,6 +677,7 @@ const styles = StyleSheet.create({
   },
   map: {
     height: '60%',
+    width: '100%',
   },
   markerContainer: {
     width: 32,
