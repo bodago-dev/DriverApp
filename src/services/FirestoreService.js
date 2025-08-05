@@ -205,22 +205,54 @@ class FirestoreService {
     }
   }
 
+  // In FirestoreService.js
+
   async updateDeliveryStatus(deliveryId, status, additionalData = {}) {
     try {
-      const updateData = {
+      const batch = writeBatch(this.db);
+
+      // 1. Update delivery document
+      const deliveryRef = doc(this.db, 'deliveries', deliveryId);
+      batch.update(deliveryRef, {
         status,
         updatedAt: serverTimestamp(),
         ...additionalData
-      };
+      });
 
-      console.log('Updating delivery status:', updateData);
+      // 2. If we have a requestId, update the corresponding request
+      if (additionalData.requestId) {
+        const requestRef = doc(this.db, 'delivery_requests', additionalData.requestId);
+        const requestStatus = this.mapDeliveryStatusToRequestStatus(status);
 
-      await updateDoc(doc(this.db, 'deliveries', deliveryId), updateData);
+        batch.update(requestRef, {
+          status: requestStatus,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      await batch.commit();
       return { success: true };
     } catch (error) {
       console.error('Error updating delivery status:', error);
       return { success: false, error: error.message };
     }
+  }
+
+  // Enhanced status mapping
+  mapDeliveryStatusToRequestStatus(deliveryStatus) {
+    const statusMap = {
+      'accepted': 'accepted',
+      'driver_assigned': 'accepted',
+      'arrived_pickup': 'in_progress',
+      'picked_up': 'in_progress',
+      'in_transit': 'in_progress',
+      'arrived_dropoff': 'in_progress',
+      'delivered': 'completed',
+      'cancelled': 'cancelled',
+      'failed': 'failed'
+    };
+
+    return statusMap[deliveryStatus] || deliveryStatus;
   }
 
   async getDelivery(deliveryId) {

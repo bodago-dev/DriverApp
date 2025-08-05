@@ -205,7 +205,10 @@ const DeliveryRequestScreen = ({ route, navigation }: {
       const updateDeliveryResult = await firestoreService.updateDeliveryStatus(
         deliveryId,
         'accepted',
-        { driverId: currentUser.uid }
+        {
+            driverId: currentUser.uid,
+            requestId: request.id
+        }
       );
 
       if (!updateDeliveryResult.success) {
