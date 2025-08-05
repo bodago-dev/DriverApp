@@ -293,7 +293,9 @@ return () => clearTimeout(timer);
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
-            await firestoreService.updateDeliveryStatus(deliveryId, 'cancelled');
+            // Pass requestId when cancelling delivery
+            const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
+            await firestoreService.updateDeliveryStatus(deliveryId, 'cancelled', additionalData);
             navigation.goBack();
           },
         },
@@ -412,7 +414,10 @@ return () => clearTimeout(timer);
 
     if (newStatus) {
       try {
-        const result = await firestoreService.updateDeliveryStatus(deliveryId, newStatus);
+        // Include requestId in the update to ensure delivery_request is also updated
+        const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
+        const result = await firestoreService.updateDeliveryStatus(deliveryId, newStatus, additionalData);
+
         if (!result.success) {
           Alert.alert('Error', result.error || 'Failed to update delivery status.');
         } else if (navigateToCompletion) {
@@ -552,7 +557,7 @@ return () => clearTimeout(timer);
         {/* Pickup Marker */}
         {deliveryData.pickupLocation?.coordinates && (
           <Marker
-            coordinate={getCoordinates(deliveryData.pickupLocation?.coordinates)}
+            coordinate={getCoordinates(deliveryData.pickupLocation)}
             title="Pickup"
             description={deliveryData.pickupLocation.address}
           >
@@ -572,7 +577,7 @@ return () => clearTimeout(timer);
         {/* Dropoff Marker */}
         {deliveryData.dropoffLocation?.coordinates && (
           <Marker
-            coordinate={getCoordinates(deliveryData.dropoffLocation?.coordinates)}
+            coordinate={getCoordinates(deliveryData.dropoffLocation)}
             title="Dropoff"
             description={deliveryData.dropoffLocation.address}
           >
@@ -595,7 +600,6 @@ return () => clearTimeout(timer);
             coordinates={routeCoordinates}
             strokeWidth={3}
             strokeColor="#0066cc"
-            lineDashPattern={[1]}
           />
         )}
       </MapView>
@@ -820,5 +824,4 @@ const styles = StyleSheet.create({
 });
 
 export default NavigationScreen;
-
 
