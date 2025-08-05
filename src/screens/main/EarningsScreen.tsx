@@ -149,7 +149,25 @@ const EarningsScreen = ({ navigation }) => {
   const renderDeliveryItem = ({ item }) => (
     <TouchableOpacity
       style={styles.deliveryItem}
-      onPress={() => navigation.navigate('DeliveryDetails', { deliveryId: item.id })}>
+      onPress={() => {
+        navigation.navigate('DeliveryTab', {
+          screen: 'DeliveryDetails',
+          params: {
+            deliveryId: item.id,
+            request: {
+              pickupAddress: item.pickupLocation?.address || 'N/A',
+              dropoffAddress: item.dropoffLocation?.address || 'N/A',
+              packageSize: item.packageDetails?.size || 'medium',
+              distance: item.distance || 'N/A',
+              fare: item.fareDetails?.total || 0,
+              paymentMethod: item.paymentMethod || 'M-Pesa (Paid)',
+              status: item.status
+            }
+          }
+        });
+      }}
+    >
+
       <View style={styles.deliveryItemHeader}>
         <Text style={styles.deliveryItemId}>{item.id}</Text>
         <Text style={styles.deliveryItemAmount}>{formatPrice(item.fareDetails?.total || 0)}</Text>

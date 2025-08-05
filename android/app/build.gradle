@@ -130,15 +130,16 @@ dependencies {
     } else {
         implementation jscFlavor
     }
-    implementation project(':react-native-geolocation-service')
+    implementation project(':react-native-maps')
+//    implementation project(':react-native-geolocation-service')
+    implementation 'com.google.android.gms:play-services-maps:18.1.0'
     implementation 'com.google.android.gms:play-services-location:21.0.1'
-}
+    implementation "com.google.android.libraries.places:places:3.5.0"
 
+}
 
 project.ext.vectoricons = [
         iconFontNames: [ 'Ionicons.ttf' ] // Add other font files if you use them
 ]
 
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
-
-apply plugin: 'com.google.gms.google-services'

@@ -242,9 +242,9 @@ class FirestoreService {
   }
 
   // Get user's delivery history
-  async getUserDeliveries(userId, role = 'customer', limitCount = 20) {
+  async getUserDeliveries(userId, role = 'rider', limitCount = 20) {
     try {
-      const field = role === 'customer' ? 'customerId' : 'driverId';
+      const field = role === 'rider' ? 'riderId' : 'driverId';
       const q = query(
         collection(this.db, 'deliveries'),
         where(field, '==', userId),
@@ -380,7 +380,8 @@ class FirestoreService {
       query(
         collection(this.db, 'delivery_requests'),
 //        where('status', '==', 'pending'),
-//        where('expiresAt', '>', new Date())
+//        where('expiresAt', '>', new Date()),
+//        where('_name_', '==', request.id),
       ),
       (snapshot) => {
         const requests = [];

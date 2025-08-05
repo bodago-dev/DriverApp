@@ -39,7 +39,7 @@ const NavigationScreen = ({ route, navigation }) => {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [shouldAnimateMap, setShouldAnimateMap] = useState(true);
   const [lastStep, setLastStep] = useState('');
-  const [shouldAnimateRegion, setShouldAnimateRegion] = useState(true);
+//   const [shouldAnimateRegion, setShouldAnimateRegion] = useState(true);
 
   const unsubscribeDeliveryRef = useRef<() => void>();
   const watchId = useRef<number>();
@@ -92,30 +92,44 @@ const NavigationScreen = ({ route, navigation }) => {
   };
 
   // Calculate the optimal map region to show both driver and destination
-  const calculateMapRegion = (): Region => {
-    if (!driverLocation || !deliveryData) {
+  const calculateMapRegion = useCallback((currentDriverLoc: {latitude: number, longitude: number} | null, currentDeliveryData: any): Region => {
+    if (!currentDriverLoc || !currentDeliveryData) {
       return DEFAULT_REGION;
     }
 
     let destination;
 
     if (currentStep === 'accepted' || currentStep === 'arrived_pickup') {
-      destination = getCoordinates(deliveryData.pickupLocation);
+      destination = getCoordinates(currentDeliveryData.pickupLocation);
     } else {
-      destination = getCoordinates(deliveryData.dropoffLocation);
+      destination = getCoordinates(currentDeliveryData.dropoffLocation);
     }
 
-    if (!destination || !driverLocation.latitude || !driverLocation.longitude) {
+    if (!destination || !currentDriverLoc.latitude || !currentDriverLoc.longitude) {
       return DEFAULT_REGION;
     }
 
-    // Calculate midpoint between driver and destination
-    const midLat = (driverLocation.latitude + destination.latitude) / 2;
-    const midLon = (driverLocation.longitude + destination.longitude) / 2;
+    // Combine all points to fit them on the map
+    const allCoords = [currentDriverLoc, destination];
 
-    // Calculate deltas to ensure both points are visible with padding
-    const latDelta = Math.abs(driverLocation.latitude - destination.latitude) * 1.8;
-    const lonDelta = Math.abs(driverLocation.longitude - destination.longitude) * 1.8;
+    let minLat = Infinity, maxLat = -Infinity;
+    let minLon = Infinity, maxLon = -Infinity;
+
+    allCoords.forEach(coord => {
+      if (coord) {
+        minLat = Math.min(minLat, coord.latitude);
+        maxLat = Math.max(maxLat, coord.latitude);
+        minLon = Math.min(minLon, coord.longitude);
+        maxLon = Math.max(maxLon, coord.longitude);
+      }
+    });
+
+    const midLat = (minLat + maxLat) / 2;
+    const midLon = (minLon + maxLon) / 2;
+
+    // Add some padding to the deltas to ensure both points are visible
+    const latDelta = (maxLat - minLat) * 1.5;
+    const lonDelta = (maxLon - minLon) * 1.5;
 
     // Ensure minimum deltas to prevent zooming too far in
     const minDelta = 0.01;
@@ -125,7 +139,7 @@ const NavigationScreen = ({ route, navigation }) => {
       latitudeDelta: Math.max(minDelta, latDelta),
       longitudeDelta: Math.max(minDelta, lonDelta),
     };
-  };
+  }, [currentStep]);
 
   // Update ETA calculation
   const updateETA = useCallback((currentDelivery: any, currentDriverLocation: {latitude: number, longitude: number} | null) => {
@@ -148,42 +162,56 @@ const NavigationScreen = ({ route, navigation }) => {
     }
   }, [currentStep]);
 
-  // Update map region when location or step changes
-  useEffect(() => {
-    if (driverLocation && deliveryData) {
-      const newRegion = calculateMapRegion();
-      setMapRegion(newRegion);
+// Update map region when location or step changes
+useEffect(() => {
+if (driverLocation && deliveryData) {
+  const newRegion = calculateMapRegion(driverLocation, deliveryData);
+  setMapRegion(newRegion);
 
-      const shouldAnimate =
-        lastStep === '' ||
-        shouldAnimateRegion ||
-        (currentStep !== lastStep && shouldAnimateForStepChange(currentStep));
+  const shouldAnimate =
+    lastStep === '' ||
+    shouldAnimateForStepChange(currentStep);
 
-      if (mapRef.current && shouldAnimate) {
-        mapRef.current.animateToRegion(newRegion, 500);
-      } else if (mapRef.current) {
-        mapRef.current.setCamera({
-          center: {
-            latitude: newRegion.latitude,
-            longitude: newRegion.longitude,
-          },
-          zoom: calculateZoomLevel(newRegion),
-        }, { duration: 300 });
+  if (mapRef.current) {
+        if (shouldAnimate) {
+          mapRef.current.animateToRegion(newRegion, 500);
+        } else {
+          mapRef.current.setCamera({
+            center: {
+              latitude: newRegion.latitude,
+              longitude: newRegion.longitude,
+            },
+            zoom: calculateZoomLevel(newRegion),
+          }, { duration: 300 });
+        }
       }
     }
-  }, [driverLocation, currentStep, deliveryData]);
+  }, [driverLocation, currentStep, deliveryData, calculateMapRegion]);
+
+useEffect(() => {
+const timer = setTimeout(() => {
+  if (mapRef.current && driverLocation && deliveryData) {
+    const newRegion = calculateMapRegion(driverLocation, deliveryData);
+    mapRef.current.animateToRegion(newRegion, 500);
+  }
+}, 500); // Small delay to ensure map is ready
+
+return () => clearTimeout(timer);
+}, [driverLocation, deliveryData]);
 
   // Update route coordinates when location changes
-  const updateRouteCoordinates = useCallback((currentLocation: {latitude: number, longitude: number}) => {
-    if (!deliveryData) return;
+  const updateRouteCoordinates = useCallback((currentLocation: {latitude: number, longitude: number}, currentDeliveryData: any) => {
+    if (!currentDeliveryData) return;
 
     const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? getCoordinates(deliveryData.pickupLocation)
-      : getCoordinates(deliveryData.dropoffLocation);
+      ? getCoordinates(currentDeliveryData.pickupLocation)
+      : getCoordinates(currentDeliveryData.dropoffLocation);
 
     if (destination) {
       setRouteCoordinates([currentLocation, destination]);
       setShouldAnimateMap(true);
+    } else {
+      setRouteCoordinates([]); // Clear polyline if no destination
     }
   }, [deliveryData, currentStep]);
 
@@ -253,7 +281,7 @@ const NavigationScreen = ({ route, navigation }) => {
       }
       backHandler.remove();
     };
-  }, [deliveryId]);
+  }, [deliveryId, updateETA]);
 
   const handleBackPress = async () => {
     Alert.alert(
@@ -312,12 +340,9 @@ const NavigationScreen = ({ route, navigation }) => {
         longitude: position.coords.longitude,
       };
 
-      await new Promise<void>((resolve) => {
-        setDriverLocation(initialLocation);
-        setTimeout(resolve, 100);
-      });
-
+      setDriverLocation(initialLocation);
       await firestoreService.updateDriverLocation(driverId, initialLocation);
+      updateRouteCoordinates(initialLocation, deliveryData); // Update route coordinates initially
       setLocationError(null);
 
       watchId.current = Geolocation.watchPosition(
@@ -328,7 +353,7 @@ const NavigationScreen = ({ route, navigation }) => {
           };
           setDriverLocation(newLocation);
           firestoreService.updateDriverLocation(driverId, newLocation);
-          updateRouteCoordinates(newLocation);
+          updateRouteCoordinates(newLocation, deliveryData);
           updateETA(deliveryData, newLocation);
         },
         (error) => {
@@ -359,7 +384,7 @@ const NavigationScreen = ({ route, navigation }) => {
 
     setIsLoading(true);
     setLastStep(currentStep);
-    setShouldAnimateRegion(false);
+//     setShouldAnimateRegion(false);
 
     let newStatus = '';
     let navigateToCompletion = false;
@@ -397,7 +422,7 @@ const NavigationScreen = ({ route, navigation }) => {
               pickupAddress: deliveryData.pickupLocation?.address || 'N/A',
               dropoffAddress: deliveryData.dropoffLocation?.address || 'N/A',
               packageSize: deliveryData.packageDetails?.size || 'medium',
-              distance: route.params.request.distance || 'N/A',
+              distance: deliveryData.distance || route.params.request.distance || 'N/A', // Use deliveryData.distance if available
               fare: deliveryData.fareDetails?.total || 0,
               paymentMethod: deliveryData.paymentMethod || 'M-Pesa (Paid)',
             }
@@ -502,59 +527,69 @@ const NavigationScreen = ({ route, navigation }) => {
         initialRegion={DEFAULT_REGION}
         showsUserLocation={true}
         followsUserLocation={false}
-        onRegionChangeComplete={(region) => {
-          setMapRegion(region);
-          setShouldAnimateRegion(false);
-        }}
-        moveOnMarkerPress={false}
-        loadingEnabled={true}
-        loadingIndicatorColor="#0066cc"
-        loadingBackgroundColor="#f8f9fa"
+        showsMyLocationButton={true}
+        showsCompass={true}
+        toolbarEnabled={true}
       >
+        {/* Driver Marker */}
+        {driverLocation && (
+          <Marker
+            coordinate={driverLocation}
+            title="You"
+            description="Your current location"
+          >
+            <View style={[styles.markerContainer, { backgroundColor: '#0066cc' }]}>
+              <Ionicons
+                name="car"
+                size={16}
+                color="#fff"
+              />
+            </View>
+          </Marker>
+        )}
+
         {/* Pickup Marker */}
-        {deliveryData.pickupLocation && (
-          <MemoizedMarker
-            coordinate={getCoordinates(deliveryData.pickupLocation)}
+        {deliveryData.pickupLocation?.coordinates && (
+          <Marker
+            coordinate={getCoordinates(deliveryData.pickupLocation?.coordinates)}
             title="Pickup"
-            description={deliveryData.pickupLocation?.address || 'Pickup location'}
-            icon={
-              <View style={[
-                styles.markerContainer,
-                { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#e6f2ff' : '#ccc' }
-              ]}>
-                <Ionicons
-                  name="locate"
-                  size={16}
-                  color={(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#666'}
-                />
-              </View>
-            }
-          />
+            description={deliveryData.pickupLocation.address}
+          >
+            <View style={[
+              styles.markerContainer,
+              { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#e6f2ff' : '#ccc' }
+            ]}>
+              <Ionicons
+                name="locate"
+                size={16}
+                color={(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#666'}
+              />
+            </View>
+          </Marker>
         )}
 
         {/* Dropoff Marker */}
-        {deliveryData.dropoffLocation && (
-          <MemoizedMarker
-            coordinate={getCoordinates(deliveryData.dropoffLocation)}
+        {deliveryData.dropoffLocation?.coordinates && (
+          <Marker
+            coordinate={getCoordinates(deliveryData.dropoffLocation?.coordinates)}
             title="Dropoff"
-            description={deliveryData.dropoffLocation?.address || 'Dropoff location'}
-            icon={
-              <View style={[
-                styles.markerContainer,
-                { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ffebee' : '#ccc' }
-              ]}>
-                <Ionicons
-                  name="location"
-                  size={16}
-                  color={(currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#666'}
-                />
-              </View>
-            }
-          />
+            description={deliveryData.dropoffLocation.address}
+          >
+            <View style={[
+              styles.markerContainer,
+              { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ffebee' : '#ccc' }
+            ]}>
+              <Ionicons
+                name="location"
+                size={16}
+                color={(currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#666'}
+              />
+            </View>
+          </Marker>
         )}
 
         {/* Route Line */}
-        {routeCoordinates.length > 1 && (
+        {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}
             strokeWidth={3}
@@ -566,13 +601,6 @@ const NavigationScreen = ({ route, navigation }) => {
 
       {/* Navigation Panel */}
       <View style={styles.navigationPanel}>
-        {locationError && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="warning" size={20} color="#fff" />
-            <Text style={styles.errorText}>{locationError}</Text>
-          </View>
-        )}
-
         <View style={styles.navigationHeader}>
           <Text style={styles.navigationTitle}>{getStepTitle()}</Text>
           <View style={styles.etaContainer}>
@@ -607,8 +635,8 @@ const NavigationScreen = ({ route, navigation }) => {
           <View style={styles.deliveryInfoItem}>
             <Text style={styles.deliveryInfoLabel}>Package</Text>
             <Text style={styles.deliveryInfoValue}>
-              {deliveryData.packageDetails?.size === 'small' ? 'Small' :
-               deliveryData.packageDetails?.size === 'medium' ? 'Medium' : 'Large'}
+              {deliveryData.packageSize === 'small' ? 'Small' :
+               deliveryData.packageSize === 'medium' ? 'Medium' : 'Large'}
             </Text>
           </View>
           <View style={styles.deliveryInfoItem}>
@@ -636,10 +664,6 @@ const NavigationScreen = ({ route, navigation }) => {
             <Ionicons name="chatbubble" size={20} color="#0066cc" />
             <Text style={styles.contactButtonText}>Message</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.contactButton} onPress={handleOpenExternalNavigation}>
-            <Ionicons name="navigate" size={20} color="#0066cc" />
-            <Text style={styles.contactButtonText}>External Nav</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -662,22 +686,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  errorBanner: {
-    backgroundColor: '#f44336',
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  errorText: {
-    color: '#fff',
-    marginLeft: 5,
-    fontSize: 14,
-  },
   map: {
     height: '60%',
-    width: '100%',
   },
   markerContainer: {
     width: 32,
@@ -809,3 +819,5 @@ const styles = StyleSheet.create({
 });
 
 export default NavigationScreen;
+
+

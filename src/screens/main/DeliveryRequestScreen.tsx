@@ -8,7 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import {
   getFirestore,
   collection,
@@ -51,13 +51,51 @@ type DeliveryRequest = {
   paymentMethod?: string;
 };
 
+// Helper function to calculate optimal map region
+const calculateMapRegion = (pickupCoords: any, dropoffCoords: any) => {
+  if (!pickupCoords || !dropoffCoords) {
+    return {
+      latitude: -6.7924, // Default to Dar es Salaam
+      longitude: 39.2083,
+      latitudeDelta: 0.0922,
+      longitudeDelta: 0.0421,
+    };
+  }
+
+  // Calculate min/max coordinates
+  const minLat = Math.min(pickupCoords.latitude, dropoffCoords.latitude);
+  const maxLat = Math.max(pickupCoords.latitude, dropoffCoords.latitude);
+  const minLon = Math.min(pickupCoords.longitude, dropoffCoords.longitude);
+  const maxLon = Math.max(pickupCoords.longitude, dropoffCoords.longitude);
+
+  // Calculate center point
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLon = (minLon + maxLon) / 2;
+
+  // Calculate deltas with padding
+  const latDelta = (maxLat - minLat) * 1.5; // Add 50% padding
+  const lonDelta = (maxLon - minLon) * 1.5; // Add 50% padding
+
+  // Ensure minimum deltas to prevent zooming too far in
+  const minDelta = 0.01;
+  return {
+    latitude: centerLat,
+    longitude: centerLon,
+    latitudeDelta: Math.max(minDelta, latDelta),
+    longitudeDelta: Math.max(minDelta, lonDelta),
+  };
+};
+
 const DeliveryRequestScreen = ({ route, navigation }: {
   route: { params: { request: DeliveryRequest } };
   navigation: any;
 }) => {
   const { request } = route.params;
   const [isLoading, setIsLoading] = useState(false);
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(100);
+  const mapRef = React.useRef<MapView>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapKey, setMapKey] = useState(0);
 
   // Use actual coordinates from the request if available
   const pickupCoordinates = request.pickupLocation?.coordinates || {
@@ -70,12 +108,44 @@ const DeliveryRequestScreen = ({ route, navigation }: {
     longitude: 39.2583,
   };
 
+  // Calculate the initial region
+  const initialRegion = calculateMapRegion(pickupCoordinates, dropoffCoordinates);
+
+  console.log('Pickup Coordinates:', pickupCoordinates);
+  console.log('Dropoff Coordinates:', dropoffCoordinates);
+  console.log('Initial Region:', initialRegion);
+
+  // Validate coordinates
+  if (!pickupCoordinates || !dropoffCoordinates) {
+    console.error('Invalid coordinates received');
+  }
+
+  // Update map key when coordinates change
+  useEffect(() => {
+    setMapKey(prev => prev + 1); // Force remount when coordinates change
+  }, [pickupCoordinates, dropoffCoordinates]);
+
+  // Fit map to markers when coordinates change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (mapRef.current && pickupCoordinates && dropoffCoordinates) {
+        console.log('Fitting to coordinates...');
+        mapRef.current.fitToCoordinates([pickupCoordinates, dropoffCoordinates], {
+          edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
+          animated: true,
+        });
+      }
+    }, 500); // Small delay to ensure map is ready
+
+    return () => clearTimeout(timer);
+  }, [pickupCoordinates, dropoffCoordinates, request.id]);
+
   // Countdown timer for request expiration
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => {
         setCountdown(countdown - 1);
-      }, 1000);
+      }, 10000);
 
       return () => clearTimeout(timer);
     } else {
@@ -153,8 +223,8 @@ const DeliveryRequestScreen = ({ route, navigation }: {
           fare: request.fareDetails?.total || request.fare,
           distance: request.distance?.toFixed(1) || 'N/A',
         },
-        pickupCoordinates: getCoordinates(request.pickupLocation),
-        dropoffCoordinates: getCoordinates(request.dropoffLocation),
+        pickupCoordinates: pickupCoordinates,
+        dropoffCoordinates: dropoffCoordinates,
       });
 
     } catch (error) {
@@ -183,31 +253,6 @@ const DeliveryRequestScreen = ({ route, navigation }: {
     );
   };
 
-  const getCoordinates = (location: any) => {
-    if (!location) return null;
-
-    // If coordinates are nested
-    if (location.coordinates) {
-      return location.coordinates;
-    }
-
-    // If coordinates are direct properties
-    if (location.latitude && location.longitude) {
-      return location;
-    }
-
-    // Handle Firestore GeoPoint
-    if (typeof location.latitude === 'function') {
-      return {
-        latitude: location.latitude(),
-        longitude: location.longitude()
-      };
-    }
-
-    return null;
-  };
-
-
   const formatPrice = (price: number) => {
     return `TZS ${price.toLocaleString()}`;
   };
@@ -216,33 +261,53 @@ const DeliveryRequestScreen = ({ route, navigation }: {
     <View style={styles.container}>
       {/* Map View */}
       <MapView
+        key={`map-${request.id}`}
+        ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={{
-          latitude: (pickupCoordinates.latitude + dropoffCoordinates.latitude) / 2,
-          longitude: (pickupCoordinates.longitude + dropoffCoordinates.longitude) / 2,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}>
-        {/* Pickup Marker */}
-        <Marker
-          coordinate={pickupCoordinates}
-          title="Pickup"
-          description={request.pickupLocation?.address || request.pickupAddress}>
-          <View style={[styles.markerContainer, { backgroundColor: '#e6f2ff' }]}>
-            <Ionicons name="locate" size={16} color="#0066cc" />
-          </View>
-        </Marker>
+        initialRegion={initialRegion}
+        onMapReady={() => {
+            console.log('Map ready');
+            setMapReady(true);
+        }}
+        onLayout={() => {
+            console.log('Map layout completed');
+            setMapReady(true);
+        }}
+      >
+        {mapReady && (
+            <>
+              {/* Markers and polyline */}
+              <Marker
+                coordinate={pickupCoordinates}
+                title="Pickup"
+                description={request.pickupLocation?.address || request.pickupAddress}
+              >
+                <View style={[styles.markerContainer, { backgroundColor: '#e6f2ff' }]}>
+                  <Ionicons name="locate" size={16} color="#0066cc" />
+                </View>
+              </Marker>
 
-        {/* Dropoff Marker */}
-        <Marker
-          coordinate={dropoffCoordinates}
-          title="Dropoff"
-          description={request.dropoffLocation?.address || request.dropoffAddress}>
-          <View style={[styles.markerContainer, { backgroundColor: '#ffebee' }]}>
-            <Ionicons name="location" size={16} color="#ff6b6b" />
-          </View>
-        </Marker>
+              {/* Dropoff Marker */}
+              <Marker
+                coordinate={dropoffCoordinates}
+                title="Dropoff"
+                description={request.dropoffLocation?.address || request.dropoffAddress}
+              >
+                <View style={[styles.markerContainer, { backgroundColor: '#ffebee' }]}>
+                  <Ionicons name="location" size={16} color="#ff6b6b" />
+                </View>
+              </Marker>
+
+              {/* Route Line */}
+              <Polyline
+                coordinates={[pickupCoordinates, dropoffCoordinates]}
+                strokeWidth={3}
+                strokeColor="#0066cc"
+              />
+            </>
+        )}
+
       </MapView>
 
       {/* Countdown Timer */}
@@ -367,6 +432,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     alignItems: 'center',
+    zIndex: 1,
   },
   countdownText: {
     color: '#fff',

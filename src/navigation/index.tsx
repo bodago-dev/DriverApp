@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -20,6 +21,7 @@ import HomeScreen from '../screens/main/HomeScreen';
 import DeliveryRequestScreen from '../screens/main/DeliveryRequestScreen';
 import NavigationScreen from '../screens/main/NavigationScreen';
 import DeliveryStatusScreen from '../screens/main/DeliveryStatusScreen';
+import DeliveryDetailsScreen from '../screens/main/DeliveryDetailsScreen';
 import DeliveryHistoryScreen from '../screens/main/DeliveryHistoryScreen';
 import EarningsScreen from '../screens/main/EarningsScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
@@ -78,6 +80,7 @@ const DeliveryNavigator = () => {
       <DeliveryStack.Screen name="DeliveryRequest" component={DeliveryRequestScreen} options={{ title: 'New Request' }} />
       <DeliveryStack.Screen name="Navigation" component={NavigationScreen} options={{ title: 'Navigation' }} />
       <DeliveryStack.Screen name="DeliveryStatus" component={DeliveryStatusScreen} options={{ title: 'Delivery Status' }} />
+      <DeliveryStack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} options={{ title: 'Delivery Details' }} />
     </DeliveryStack.Navigator>
   );
 };
@@ -162,48 +165,69 @@ const TabNavigator = () => {
 
 // Main navigator
 const MainNavigator = () => {
-    const [isLoading, setIsLoading] = useState(true);
-    const [firebaseUser, setFirebaseUser] = useState(null); // Store Firebase user
-    const [userProfile, setUserProfile] = useState(null); // Store user profile from your DB
-    const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
 
-useEffect(() => {
-    const unsubscribe = authService.addAuthStateListener((fbUser, profile) => {
-      setFirebaseUser(fbUser);
-      setUserProfile(profile);
-      setIsLoading(false);
+  useEffect(() => {
+    let isMounted = true;
+    let unsubscribe: () => void;
 
-      // Debug logs
-      console.log('Auth State Changed:', {
-        hasUser: !!fbUser,
-        hasProfile: !!profile,
-        onboardingCompleted: profile?.onboardingCompleted
+    // Wait for BOTH auth state AND profile to stabilize
+    const checkAuthAndProfile = async () => {
+      unsubscribe = authService.addAuthStateListener(async (fbUser, fbProfile) => {
+        if (!isMounted) return;
+
+        console.log("Auth state update:", {
+          user: fbUser?.uid,
+          profileExists: !!fbProfile
+        });
+
+        setUser(fbUser);
+        setProfile(fbProfile);
+
+        // Only mark as ready if:
+        // - User is logged out (fbUser = null), OR
+        // - User is logged in AND profile is loaded
+        if (!fbUser || (fbUser && fbProfile)) {
+          setIsReady(true);
+        }
       });
-    });
+    };
 
-    return () => unsubscribe();
+    checkAuthAndProfile();
+
+    return () => {
+      isMounted = false;
+      unsubscribe?.();
+    };
   }, []);
 
-  // This would normally check for authentication state
-  // const isAuthenticated = false;
+  if (!isReady) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0066cc" />
+      </View>
+    );
+  }
 
-return (
-  <NavigationContainer ref={navigationRef}>
-    <MainStack.Navigator screenOptions={{ headerShown: false }}>
-      {!firebaseUser ? (
-        <MainStack.Screen name="Auth" component={AuthNavigator} />
-      ) : userProfile?.onboardingCompleted ? (
-        <MainStack.Screen name="MainTabs" component={TabNavigator} />
-      ) : (
-        <MainStack.Screen
-          name="Onboarding"
-          component={OnboardingNavigator}
-          options={{ gestureEnabled: false }}
-        />
-      )}
-    </MainStack.Navigator>
-  </NavigationContainer>
-);
+  return (
+    <NavigationContainer ref={navigationRef}>
+      <MainStack.Navigator screenOptions={{ headerShown: false }}>
+        {!user ? (
+          <MainStack.Screen name="Auth" component={AuthNavigator} />
+        ) : profile?.onboardingCompleted ? (
+          <MainStack.Screen name="MainTabs" component={TabNavigator} />
+        ) : (
+          <MainStack.Screen
+            name="Onboarding"
+            component={OnboardingNavigator}
+            options={{ gestureEnabled: false }}
+          />
+        )}
+      </MainStack.Navigator>
+    </NavigationContainer>
+  );
 };
 
 export default MainNavigator;

@@ -45,7 +45,7 @@ const handleSaveProfile = async () => {
           phoneNumber: `+255${phoneNumber}`, // Save with country code
           email,
           address,
-          role: 'driver', // Automatically assign 'driver' role
+          role: 'rider', // Automatically assign 'rider' role
         });
 
         if (result.success) {

@@ -7,17 +7,26 @@ buildscript {
         ndkVersion = "29.0.13599879"
         kotlinVersion = "2.0.21"
         googlePlayServicesVersion = "21.0.1"
+        androidMapsUtilsVersion = "3.4.0"
+        agpVersion = "8.3.2"
     }
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle")
+        classpath("com.android.tools.build:gradle:$agpVersion")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
         classpath ("com.google.gms:google-services:4.4.2")
     }
+}
+
+plugins {
+    // ...
+    id 'com.facebook.react.rootproject'
+    // Add the dependency for the Google services Gradle plugin
+    id 'com.google.gms.google-services' version '4.4.2' apply false
 }
 
 allprojects {
@@ -32,9 +41,11 @@ allprojects {
         }
         google()
         mavenCentral()
-        maven { url 'https://www.jitpack.io' }
+        maven { url 'https://maven.google.com/' }
     }
 }
+
+
 
 
 
