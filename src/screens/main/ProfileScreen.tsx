@@ -30,7 +30,7 @@ useEffect(() => {
         if (userDoc.exists()) {
           setUser({
             ...userDoc.data(),
-            profilePicture: require('../../assets/avatar-placeholder.jpg'),
+            profilePicture: require('../../assets/driver-avatar-placeholder.jpg'),
           });
         }
       }

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  ScrollView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
@@ -37,9 +38,9 @@ const NavigationScreen = ({ route, navigation }) => {
   const [routeCoordinates, setRouteCoordinates] = useState<{latitude: number, longitude: number}[]>([]);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [shouldAnimateMap, setShouldAnimateMap] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
   const [lastStep, setLastStep] = useState('');
-//   const [shouldAnimateRegion, setShouldAnimateRegion] = useState(true);
+  const [shouldAnimateRegion, setShouldAnimateRegion] = useState(true);
 
   const unsubscribeDeliveryRef = useRef<() => void>();
   const watchId = useRef<number>();
@@ -162,17 +163,18 @@ const NavigationScreen = ({ route, navigation }) => {
     }
   }, [currentStep]);
 
-// Update map region when location or step changes
-useEffect(() => {
-if (driverLocation && deliveryData) {
-  const newRegion = calculateMapRegion(driverLocation, deliveryData);
-  setMapRegion(newRegion);
+  // Update map region when location or step changes
+  useEffect(() => {
+    if (driverLocation && deliveryData && mapReady) {
+      const newRegion = calculateMapRegion(driverLocation, deliveryData);
+      setMapRegion(newRegion);
 
-  const shouldAnimate =
-    lastStep === '' ||
-    shouldAnimateForStepChange(currentStep);
+      const shouldAnimate =
+        lastStep === '' ||
+        shouldAnimateRegion ||
+        (currentStep !== lastStep && shouldAnimateForStepChange(currentStep));
 
-  if (mapRef.current) {
+      if (mapRef.current) {
         if (shouldAnimate) {
           mapRef.current.animateToRegion(newRegion, 500);
         } else {
@@ -185,19 +187,9 @@ if (driverLocation && deliveryData) {
           }, { duration: 300 });
         }
       }
+      setShouldAnimateRegion(false);
     }
-  }, [driverLocation, currentStep, deliveryData, calculateMapRegion]);
-
-useEffect(() => {
-const timer = setTimeout(() => {
-  if (mapRef.current && driverLocation && deliveryData) {
-    const newRegion = calculateMapRegion(driverLocation, deliveryData);
-    mapRef.current.animateToRegion(newRegion, 500);
-  }
-}, 500); // Small delay to ensure map is ready
-
-return () => clearTimeout(timer);
-}, [driverLocation, deliveryData]);
+  }, [driverLocation, currentStep, deliveryData, calculateMapRegion, mapReady, shouldAnimateRegion]);
 
   // Update route coordinates when location changes
   const updateRouteCoordinates = useCallback((currentLocation: {latitude: number, longitude: number}, currentDeliveryData: any) => {
@@ -209,9 +201,8 @@ return () => clearTimeout(timer);
 
     if (destination) {
       setRouteCoordinates([currentLocation, destination]);
-      setShouldAnimateMap(true);
     } else {
-      setRouteCoordinates([]); // Clear polyline if no destination
+      setRouteCoordinates([]);
     }
   }, [deliveryData, currentStep]);
 
@@ -293,7 +284,6 @@ return () => clearTimeout(timer);
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
-            // Pass requestId when cancelling delivery
             const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
             await firestoreService.updateDeliveryStatus(deliveryId, 'cancelled', additionalData);
             navigation.goBack();
@@ -344,7 +334,7 @@ return () => clearTimeout(timer);
 
       setDriverLocation(initialLocation);
       await firestoreService.updateDriverLocation(driverId, initialLocation);
-      updateRouteCoordinates(initialLocation, deliveryData); // Update route coordinates initially
+      updateRouteCoordinates(initialLocation, deliveryData);
       setLocationError(null);
 
       watchId.current = Geolocation.watchPosition(
@@ -386,7 +376,7 @@ return () => clearTimeout(timer);
 
     setIsLoading(true);
     setLastStep(currentStep);
-//     setShouldAnimateRegion(false);
+    setShouldAnimateRegion(true);
 
     let newStatus = '';
     let navigateToCompletion = false;
@@ -414,7 +404,6 @@ return () => clearTimeout(timer);
 
     if (newStatus) {
       try {
-        // Include requestId in the update to ensure delivery_request is also updated
         const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
         const result = await firestoreService.updateDeliveryStatus(deliveryId, newStatus, additionalData);
 
@@ -428,9 +417,10 @@ return () => clearTimeout(timer);
               pickupAddress: deliveryData.pickupLocation?.address || 'N/A',
               dropoffAddress: deliveryData.dropoffLocation?.address || 'N/A',
               packageSize: deliveryData.packageDetails?.size || 'medium',
-              distance: deliveryData.distance || route.params.request.distance || 'N/A', // Use deliveryData.distance if available
+              distance: deliveryData.distance || route.params.request.distance || 'N/A',
               fare: deliveryData.fareDetails?.total || 0,
               paymentMethod: deliveryData.paymentMethod || 'M-Pesa (Paid)',
+              phoneNumber: customerInfo?.phoneNumber || 'N/A',
             }
           });
         }
@@ -536,62 +526,67 @@ return () => clearTimeout(timer);
         showsMyLocationButton={true}
         showsCompass={true}
         toolbarEnabled={true}
+        onMapReady={() => setMapReady(true)}
+        onLayout={() => setMapReady(true)}
       >
         {/* Driver Marker */}
         {driverLocation && (
-          <Marker
+          <MemoizedMarker
             coordinate={driverLocation}
             title="You"
             description="Your current location"
-          >
-            <View style={[styles.markerContainer, { backgroundColor: '#0066cc' }]}>
-              <Ionicons
-                name="car"
-                size={16}
-                color="#fff"
-              />
-            </View>
-          </Marker>
+            icon={(
+              <View style={[styles.markerContainer, { backgroundColor: '#0066cc' }]}>
+                <Ionicons
+                  name="car"
+                  size={16}
+                  color="#fff"
+                />
+              </View>
+            )}
+          />
         )}
 
         {/* Pickup Marker */}
         {deliveryData.pickupLocation?.coordinates && (
-          <Marker
+          <MemoizedMarker
             coordinate={getCoordinates(deliveryData.pickupLocation)}
             title="Pickup"
             description={deliveryData.pickupLocation.address}
-          >
-            <View style={[
-              styles.markerContainer,
-              { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#e6f2ff' : '#ccc' }
-            ]}>
-              <Ionicons
-                name="locate"
-                size={16}
-                color={(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#666'}
-              />
-            </View>
-          </Marker>
+            icon={(
+              <View style={[
+                styles.markerContainer,
+                { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#e6f2ff' : '#ccc' }
+              ]}>
+                <Ionicons
+                  name="locate"
+                  size={16}
+                  color={(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#666'}
+                />
+              </View>
+            )}
+          />
         )}
 
         {/* Dropoff Marker */}
         {deliveryData.dropoffLocation?.coordinates && (
-          <Marker
+          <MemoizedMarker
             coordinate={getCoordinates(deliveryData.dropoffLocation)}
             title="Dropoff"
             description={deliveryData.dropoffLocation.address}
-          >
-            <View style={[
-              styles.markerContainer,
-              { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ffebee' : '#ccc' }
-            ]}>
-              <Ionicons
-                name="location"
-                size={16}
-                color={(currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#666'}
-              />
-            </View>
-          </Marker>
+            icon={(
+              <View style={[
+                styles.markerContainer,
+                { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ffebee' : '#ccc' }
+              ]}>
+                <Ionicons
+                  name="location"
+                  size={16}
+                  color={(currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#666'}
+                />
+              </View>
+            )}
+          />
         )}
 
         {/* Route Line */}
@@ -606,50 +601,76 @@ return () => clearTimeout(timer);
 
       {/* Navigation Panel */}
       <View style={styles.navigationPanel}>
-        <View style={styles.navigationHeader}>
-          <Text style={styles.navigationTitle}>{getStepTitle()}</Text>
-          <View style={styles.etaContainer}>
-            <Ionicons name="time-outline" size={16} color="#0066cc" />
-            <Text style={styles.etaText}>{eta}</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.navigationHeader}>
+            <Text style={styles.navigationTitle}>{getStepTitle()}</Text>
+            <View style={styles.etaContainer}>
+              <Ionicons name="time-outline" size={16} color="#0066cc" />
+              <Text style={styles.etaText}>{eta}</Text>
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.navigationInstructions}>{getStepInstructions()}</Text>
+          <Text style={styles.navigationInstructions}>{getStepInstructions()}</Text>
 
-        <View style={styles.addressContainer}>
-          <View style={styles.addressCard}>
-            {(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? (
-              <>
-                <Text style={styles.addressLabel}>Pickup Location</Text>
-                <Text style={styles.addressText}>{deliveryData.pickupLocation?.address || 'N/A'}</Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.addressLabel}>Dropoff Location</Text>
-                <Text style={styles.addressText}>{deliveryData.dropoffLocation?.address || 'N/A'}</Text>
-              </>
-            )}
+          <View style={styles.addressContainer}>
+            <View style={styles.addressCard}>
+              {(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? (
+                <>
+                  <Text style={styles.addressLabel}>Pickup Location</Text>
+                  <Text style={styles.addressText}>{deliveryData.pickupLocation?.address || 'N/A'}</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.addressLabel}>Dropoff Location</Text>
+                  <Text style={styles.addressText}>{deliveryData.dropoffLocation?.address || 'N/A'}</Text>
+                </>
+              )}
+            </View>
           </View>
-        </View>
 
-        <View style={styles.deliveryInfo}>
-          <View style={styles.deliveryInfoItem}>
-            <Text style={styles.deliveryInfoLabel}>Order ID</Text>
-            <Text style={styles.deliveryInfoValue}>{deliveryId}</Text>
+          <View style={styles.deliveryInfo}>
+            <View style={styles.deliveryInfoItem}>
+              <Text style={styles.deliveryInfoLabel}>Order ID</Text>
+              <Text style={styles.deliveryInfoValue}>{deliveryId}</Text>
+            </View>
+            <View style={styles.deliveryInfoItem}>
+              <Text style={styles.deliveryInfoLabel}>Package</Text>
+              <Text style={styles.deliveryInfoValue}>
+                {deliveryData.packageSize === 'small' ? 'Small' :
+                 deliveryData.packageSize === 'medium' ? 'Medium' : 'Large'}
+              </Text>
+            </View>
+            <View style={styles.deliveryInfoItem}>
+              <Text style={styles.deliveryInfoLabel}>Fare</Text>
+              <Text style={styles.deliveryInfoValue}>{formatPrice(deliveryData.fareDetails?.total || 0)}</Text>
+            </View>
           </View>
-          <View style={styles.deliveryInfoItem}>
-            <Text style={styles.deliveryInfoLabel}>Package</Text>
-            <Text style={styles.deliveryInfoValue}>
-              {deliveryData.packageSize === 'small' ? 'Small' :
-               deliveryData.packageSize === 'medium' ? 'Medium' : 'Large'}
-            </Text>
-          </View>
-          <View style={styles.deliveryInfoItem}>
-            <Text style={styles.deliveryInfoLabel}>Fare</Text>
-            <Text style={styles.deliveryInfoValue}>{formatPrice(deliveryData.fareDetails?.total || 0)}</Text>
-          </View>
-        </View>
 
+          <View style={styles.contactContainer}>
+            <TouchableOpacity style={styles.contactButton} onPress={handleCallCustomer}>
+              <Ionicons name="call" size={20} color="#0066cc" />
+              <Text style={styles.contactButtonText}>Call Customer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.contactButton} onPress={handleMessageCustomer}>
+              <Ionicons name="chatbubble" size={20} color="#0066cc" />
+              <Text style={styles.contactButtonText}>Message</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Cancel Button moved here */}
+          <TouchableOpacity
+            style={[styles.cancelButton, isLoading && styles.cancelButtonDisabled]}
+            onPress={handleBackPress}
+            disabled={isLoading}
+          >
+            <Text style={styles.cancelButtonText}>Cancel Delivery</Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* Fixed Action Button */}
         <TouchableOpacity
           style={[styles.actionButton, isLoading && styles.actionButtonDisabled]}
           onPress={handleNextStep}
@@ -659,17 +680,6 @@ return () => clearTimeout(timer);
             {isLoading ? 'Processing...' : getActionButtonText()}
           </Text>
         </TouchableOpacity>
-
-        <View style={styles.contactContainer}>
-          <TouchableOpacity style={styles.contactButton} onPress={handleCallCustomer}>
-            <Ionicons name="call" size={20} color="#0066cc" />
-            <Text style={styles.contactButtonText}>Call Customer</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.contactButton} onPress={handleMessageCustomer}>
-            <Ionicons name="chatbubble" size={20} color="#0066cc" />
-            <Text style={styles.contactButtonText}>Message</Text>
-          </TouchableOpacity>
-        </View>
       </View>
     </View>
   );
@@ -716,12 +726,16 @@ const styles = StyleSheet.create({
     marginTop: -20,
     paddingHorizontal: 20,
     paddingTop: 20,
+    paddingBottom: 80,
+  },
+  scrollContent: {
+    paddingBottom: 15,
   },
   navigationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom:5,
   },
   navigationTitle: {
     fontSize: 18,
@@ -785,16 +799,6 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
   },
-  actionButton: {
-    backgroundColor: '#0066cc',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  actionButtonDisabled: {
-    backgroundColor: '#99ccff',
-  },
   actionButtonText: {
     color: '#fff',
     fontSize: 16,
@@ -803,6 +807,7 @@ const styles = StyleSheet.create({
   contactContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 15,
   },
   contactButton: {
     flexDirection: 'row',
@@ -821,7 +826,38 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 8,
   },
+  cancelButton: {
+      backgroundColor: '#ffebee',
+      borderRadius: 8,
+      paddingVertical: 14,
+      alignItems: 'center',
+      marginTop: 10,
+      marginBottom: 15,
+      borderWidth: 1,
+      borderColor: '#ff6b6b',
+    },
+    cancelButtonDisabled: {
+      backgroundColor: '#f5f5f5',
+      borderColor: '#ccc',
+    },
+    cancelButtonText: {
+      color: '#ff6b6b',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    actionButton: {
+      position: 'absolute',
+      bottom: 20,
+      left: 20,
+      right: 20,
+      backgroundColor: '#0066cc',
+      borderRadius: 8,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    actionButtonDisabled: {
+      backgroundColor: '#99ccff',
+    },
 });
 
 export default NavigationScreen;
-

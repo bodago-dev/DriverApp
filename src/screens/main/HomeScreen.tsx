@@ -33,6 +33,7 @@ const HomeScreen = ({ navigation }) => {
   const [nearbyRequests, setNearbyRequests] = useState([]);
   const [driverId, setDriverId] = useState<string | null>(null);
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  const [activeDeliveries, setActiveDeliveries] = useState([]);
 
   const unsubscribeRequestsRef = useRef<(() => void) | null>(null);
   const watchId = useRef<number | null>(null);
@@ -59,41 +60,45 @@ const HomeScreen = ({ navigation }) => {
   useEffect(() => {
     if (driverId) {
       fetchDriverData();
+      fetchActiveDeliveries();
       checkOnlineStatus();
     }
   }, [driverId]);
 
-  useEffect(() => {
-    if (driverId && isOnline) {
-      const startTracking = async () => {
-        const hasPermission = await requestLocationPermission();
-        if (!hasPermission) {
-          setIsOnline(false);
-          return;
+  const fetchActiveDeliveries = async () => {
+    try {
+      const currentUser = authService.getCurrentUser();
+      if (!currentUser) return;
+
+      const result = await firestoreService.getUserDeliveries(currentUser.uid, 'driver');
+      if (result.success) {
+        const active = result.deliveries.filter(delivery =>
+          ['accepted', 'arrived_pickup', 'picked_up', 'in_transit', 'arrived_dropoff'].includes(delivery.status)
+        );
+        setActiveDeliveries(active);
+      }
+    } catch (error) {
+      console.error('Error fetching active deliveries:', error);
+    }
+  };
+
+  const handleActiveDeliveryPress = (delivery) => {
+    navigation.navigate('DeliveryTab', {
+      screen: 'Navigation',
+      params: {
+        deliveryId: delivery.id,
+        request: {
+          pickupAddress: delivery.pickupLocation?.address || 'N/A',
+          dropoffAddress: delivery.dropoffLocation?.address || 'N/A',
+          packageSize: delivery.packageDetails?.size || 'medium',
+          distance: delivery.distance || 'N/A',
+          fare: delivery.fareDetails?.total || 0,
+          paymentMethod: delivery.paymentMethod || 'M-Pesa (Paid)',
+          status: delivery.status
         }
-        await startLocationTracking();
-      };
-      startTracking();
-    } else {
-      stopLocationTracking();
-      if (unsubscribeRequestsRef.current) {
-        unsubscribeRequestsRef.current();
-        unsubscribeRequestsRef.current = null;
       }
-      setNearbyRequests([]);
-    }
-
-    if (driverId) {
-      firestoreService.setDriverOnlineStatus(driverId, isOnline);
-    }
-
-    return () => {
-      if (unsubscribeRequestsRef.current) {
-        unsubscribeRequestsRef.current();
-      }
-      stopLocationTracking();
-    };
-  }, [driverId, isOnline]);
+    });
+  };
 
   const checkOnlineStatus = async () => {
     const result = await firestoreService.getDriverLocation(driverId!);
@@ -368,8 +373,9 @@ const HomeScreen = ({ navigation }) => {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDriverData();
+    fetchActiveDeliveries();
     if (isOnline && driverLocation) {
-      subscribeToDeliveryRequests();
+      setupDeliverySubscription(driverLocation);
     }
   };
 
@@ -426,6 +432,17 @@ const HomeScreen = ({ navigation }) => {
     return `TZS ${price.toLocaleString()}`;
   };
 
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'accepted': return 'Driver Assigned';
+      case 'arrived_pickup': return 'At Pickup';
+      case 'picked_up': return 'Picked Up';
+      case 'in_transit': return 'In Transit';
+      case 'arrived_dropoff': return 'At Destination';
+      default: return status.replace('_', ' ');
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -475,6 +492,46 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#0066cc" />
           <Text style={styles.loadingText}>Getting your location...</Text>
+        </View>
+      )}
+
+      {/* Active Deliveries Panel */}
+      {activeDeliveries.length > 0 && (
+        <View style={styles.activeDeliveriesContainer}>
+          <Text style={styles.sectionTitle}>Active Deliveries</Text>
+          {activeDeliveries.map((delivery) => (
+            <TouchableOpacity
+              key={delivery.id}
+              style={styles.activeDeliveryCard}
+              onPress={() => handleActiveDeliveryPress(delivery)}
+            >
+              <View style={styles.activeDeliveryHeader}>
+                <Text style={styles.activeDeliveryStatus}>
+                  {getStatusText(delivery.status)}
+                </Text>
+                <Text style={styles.activeDeliveryFare}>
+                  {formatPrice(delivery.fareDetails?.total || 0)}
+                </Text>
+              </View>
+              <View style={styles.activeDeliveryRoute}>
+                <View style={styles.locationRow}>
+                  <Ionicons name="locate" size={16} color="#0066cc" />
+                  <Text style={styles.locationText} numberOfLines={1}>
+                    {delivery.pickupLocation?.address || 'N/A'}
+                  </Text>
+                </View>
+                <View style={styles.routeDivider}>
+                  <View style={styles.routeDividerLine} />
+                </View>
+                <View style={styles.locationRow}>
+                  <Ionicons name="location" size={16} color="#ff6b6b" />
+                  <Text style={styles.locationText} numberOfLines={1}>
+                    {delivery.dropoffLocation?.address || 'N/A'}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
         </View>
       )}
 
@@ -633,6 +690,43 @@ const styles = StyleSheet.create({
   statusDescription: {
     fontSize: 13,
     color: '#666',
+  },
+  activeDeliveriesContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 10,
+    margin: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  activeDeliveryCard: {
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  activeDeliveryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  activeDeliveryStatus: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2196f3',
+  },
+  activeDeliveryFare: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#0066cc',
+  },
+  activeDeliveryRoute: {
+    marginBottom: 8,
   },
   statsContainer: {
     flexDirection: 'row',

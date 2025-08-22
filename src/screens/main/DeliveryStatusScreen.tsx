@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -105,6 +106,23 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
   const formatPrice = (price) => {
     return `TZS ${price.toLocaleString()}`;
   };
+
+const handleCallCustomer = () => {
+  if (request?.phoneNumber) {
+    Linking.openURL(`tel:${request.phoneNumber}`);
+  } else {
+    Alert.alert('Error', 'Customer phone number not available.');
+  }
+};
+
+const handleMessageCustomer = () => {
+  if (request?.phoneNumber) {
+    Linking.openURL(`sms:${request.phoneNumber}`);
+  } else {
+    Alert.alert('Error', 'Customer phone number not available.');
+  }
+};
+
   console.log('Request...', request);
   return (
     <ScrollView style={styles.container}>
@@ -228,11 +246,11 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
       </TouchableOpacity>
       
       <View style={styles.contactContainer}>
-        <TouchableOpacity style={styles.contactButton}>
+        <TouchableOpacity style={styles.contactButton} onPress={handleCallCustomer}>
           <Ionicons name="call" size={20} color="#0066cc" />
           <Text style={styles.contactButtonText}>Call Customer</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.contactButton}>
+        <TouchableOpacity style={styles.contactButton} onPress={handleMessageCustomer}>
           <Ionicons name="chatbubble" size={20} color="#0066cc" />
           <Text style={styles.contactButtonText}>Message</Text>
         </TouchableOpacity>

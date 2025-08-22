@@ -98,7 +98,7 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
     return colorMap[status] || '#666';
   };
 
-//   console.log('Delivery status:', delivery.status);
+  console.log('Delivery status:', delivery);
 
   return (
     <ScrollView style={styles.container}>
@@ -149,7 +149,7 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Weight</Text>
           <Text style={styles.detailValue}>
-            {delivery.packageDetails?.weight === 'light' ? 'Light' :
+            {delivery.packageDetails?.weight === 'small' ? 'Light' :
              delivery.packageDetails?.weight === 'medium' ? 'Medium' : 'Heavy'}
           </Text>
         </View>

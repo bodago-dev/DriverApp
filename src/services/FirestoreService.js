@@ -92,7 +92,7 @@ class FirestoreService {
         ...requestData,
         status: 'pending',
         createdAt: serverTimestamp(),
-        expiresAt: new Date(Date.now() + 300000) // 300 seconds
+        expiresAt: new Date(Date.now() + 30000) // 30 seconds
       };
 
       const docRef = await addDoc(collection(this.db, 'delivery_requests'), deliveryRequest);
@@ -451,7 +451,7 @@ class FirestoreService {
             );
 
             console.log("Distance calculated:", distance);
-            if (distance <= 50) { // 50km radius
+            if (distance <= 5) { // 5km radius
               requests.push({
                 ...request,
                 distance,
