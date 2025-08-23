@@ -76,7 +76,7 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/rider-logo-placeholder.png')}
+            source={require('../../assets/splash_logo.png')}
             style={styles.logo as StyleProp<ImageStyle>}
             resizeMode="contain"
           />
@@ -163,11 +163,11 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 10,
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 180,
+    height: 180,
   },
   title: {
     fontSize: 24,

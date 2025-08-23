@@ -9,6 +9,9 @@ import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { navigationRef } from '../services/NavigationService';
 import authService from '../services/AuthService';
 
+// Splash Screen
+import SplashScreen from '../screens/SplashScreen';
+
 // Auth Screens
 import PhoneAuthScreen from '../screens/auth/PhoneAuthScreen';
 import OtpVerificationScreen from '../screens/auth/OtpVerificationScreen';
@@ -128,36 +131,36 @@ const TabNavigator = () => {
         tabBarInactiveTintColor: 'gray',
       })}
     >
-      <Tab.Screen 
-        name="DeliveryTab" 
-        component={DeliveryNavigator} 
-        options={{ 
+      <Tab.Screen
+        name="DeliveryTab"
+        component={DeliveryNavigator}
+        options={{
           headerShown: false,
           title: 'Deliveries'
-        }} 
+        }}
       />
-      <Tab.Screen 
-        name="History" 
-        component={DeliveryHistoryScreen} 
-        options={{ 
+      <Tab.Screen
+        name="History"
+        component={DeliveryHistoryScreen}
+        options={{
           title: 'History'
-        }} 
+        }}
       />
-      <Tab.Screen 
-        name="EarningsTab" 
-        component={EarningsNavigator} 
-        options={{ 
+      <Tab.Screen
+        name="EarningsTab"
+        component={EarningsNavigator}
+        options={{
           headerShown: false,
           title: 'Earnings'
-        }} 
+        }}
       />
-      <Tab.Screen 
-        name="ProfileTab" 
-        component={ProfileNavigator} 
-        options={{ 
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileNavigator}
+        options={{
           headerShown: false,
           title: 'Profile'
-        }} 
+        }}
       />
     </Tab.Navigator>
   );
@@ -165,6 +168,7 @@ const TabNavigator = () => {
 
 // Main navigator
 const MainNavigator = () => {
+  const [showSplash, setShowSplash] = useState(true);
   const [isReady, setIsReady] = useState(false);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -202,6 +206,13 @@ const MainNavigator = () => {
       unsubscribe?.();
     };
   }, []);
+
+  // Show splash screen first
+  if (showSplash) {
+    return (
+      <SplashScreen onFinish={() => setShowSplash(false)} />
+    );
+  }
 
   if (!isReady) {
     return (
