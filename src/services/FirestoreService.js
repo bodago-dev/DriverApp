@@ -411,9 +411,8 @@ class FirestoreService {
     return onSnapshot(
       query(
         collection(this.db, 'delivery_requests'),
-//        where('status', '==', 'pending'),
-//        where('expiresAt', '>', new Date()),
-//        where('_name_', '==', request.id),
+        where('status', '==', 'pending'),
+        where('expiresAt', '>', new Date()),
       ),
       (snapshot) => {
         const requests = [];
