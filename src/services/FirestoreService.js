@@ -92,7 +92,7 @@ class FirestoreService {
         ...requestData,
         status: 'pending',
         createdAt: serverTimestamp(),
-        expiresAt: new Date(Date.now() + 30000) // 30 seconds
+        expiresAt: new Date(Date.now() + 300000) // 300 seconds
       };
 
       const docRef = await addDoc(collection(this.db, 'delivery_requests'), deliveryRequest);
@@ -205,8 +205,7 @@ class FirestoreService {
     }
   }
 
-  // In FirestoreService.js
-
+  // Update delivery status
   async updateDeliveryStatus(deliveryId, status, additionalData = {}) {
     try {
       const batch = writeBatch(this.db);
@@ -274,13 +273,13 @@ class FirestoreService {
   }
 
   // Get user's delivery history
-  async getUserDeliveries(userId, role = 'rider', limitCount = 20) {
+  async getUserDeliveries(userId, role = 'driver', limitCount = 20) {
     try {
-      const field = role === 'rider' ? 'riderId' : 'driverId';
+      const field = role === 'driver' ? 'driverId' : 'customerId';
       const q = query(
         collection(this.db, 'deliveries'),
         where(field, '==', userId),
-//        orderBy('createdAt', 'desc'),
+        orderBy('createdAt', 'desc'),
         limit(limitCount)
       );
 
@@ -398,15 +397,14 @@ class FirestoreService {
     );
   }
 
-  subscribeToDeliveryRequests(driverLocation, callback) {
+  subscribeToDeliveryRequests(driverLocation, vehicleType = null, callback) {
     if (!driverLocation) {
       console.log('Driver location not available');
       callback([], new Error('Driver location not available'));
       return () => {};
     }
 
-    console.log('Driver location', driverLocation);
-    console.log('Subscribing to delivery requests...');
+    console.log('Driver location and vehicle type:', driverLocation, vehicleType);
 
     return onSnapshot(
       query(
@@ -444,28 +442,36 @@ class FirestoreService {
               typeof pickupCoords.latitude === 'number' &&
               typeof pickupCoords.longitude === 'number') {
 
-            const distance = this.calculateDistance(
-              driverLocation,
-              pickupCoords
+            // Check vehicle type compatibility
+            const isVehicleCompatible = this.isVehicleTypeCompatible(
+              vehicleType,
+              request.selectedVehicle.id
             );
 
-            console.log("Distance calculated:", distance);
-            if (distance <= 5) { // 5km radius
-              requests.push({
-                ...request,
-                distance,
-                pickupLocation: {
-                  address: request.pickupLocation.address || request.pickupAddress || 'Address not available',
-                  coordinates: pickupCoords
-                }
-              });
+            if (isVehicleCompatible) {
+              const distance = this.calculateDistance(
+                driverLocation,
+                pickupCoords
+              );
+
+              console.log("Distance calculated:", distance);
+              if (distance <= 5) { // 5km radius
+                requests.push({
+                  ...request,
+                  distance,
+                  pickupLocation: {
+                    address: request.pickupLocation.address || request.pickupAddress || 'Address not available',
+                    coordinates: pickupCoords
+                  }
+                });
+              }
             }
           } else {
             console.warn('Invalid pickup location format:', request.pickupLocation);
           }
         });
         callback(requests);
-        console.log("Filtered requests:", requests);
+        console.log("Filtered requests by vehicle type:", requests);
       },
       (error) => {
         console.error('Delivery request subscription error:', error);
@@ -476,6 +482,42 @@ class FirestoreService {
         }
       }
     );
+  }
+
+  // Vehicle type compatibility check for the three specific types
+  isVehicleTypeCompatible(driverVehicleType, requestVehicleType) {
+    // If no vehicle type filtering is needed (driverVehicleType is null),
+    // or if the request doesn't specify a vehicle type, show all requests
+    if (!driverVehicleType || !requestVehicleType) {
+      return true;
+    }
+
+    // Normalize vehicle types for comparison
+    const normalizedDriverType = driverVehicleType.toLowerCase().trim();
+    const normalizedRequestType = requestVehicleType.toLowerCase().trim();
+
+    // Define vehicle type compatibility for the three specific types
+    const vehicleCompatibility = {
+      // Boda boda (motorcycle) - can only handle boda boda requests
+      'boda boda': ['boda boda', 'boda'],
+      'boda': ['boda boda', 'boda'],
+
+      // Bajaji (tuk-tuk) - can handle bajaji and boda boda requests
+      'bajaji': ['bajaji', 'boda boda', 'boda'],
+
+      // Guta (car) - can handle all types of requests
+      'guta': ['guta', 'bajaji', 'boda boda', 'boda', 'car', 'sedan']
+    };
+
+    // Check if the driver's vehicle type is compatible with the request
+    for (const [key, compatibleTypes] of Object.entries(vehicleCompatibility)) {
+      if (compatibleTypes.includes(normalizedDriverType)) {
+        return compatibleTypes.includes(normalizedRequestType);
+      }
+    }
+
+    // If no specific compatibility rules match, check direct match
+    return normalizedDriverType === normalizedRequestType;
   }
 
   // Payment Management

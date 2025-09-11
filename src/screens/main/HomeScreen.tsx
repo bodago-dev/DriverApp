@@ -34,6 +34,7 @@ const HomeScreen = ({ navigation }) => {
   const [driverId, setDriverId] = useState<string | null>(null);
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [activeDeliveries, setActiveDeliveries] = useState([]);
+  const [driverVehicleType, setDriverVehicleType] = useState<string | null>(null);
 
   const unsubscribeRequestsRef = useRef<(() => void) | null>(null);
   const watchId = useRef<number | null>(null);
@@ -110,14 +111,33 @@ const HomeScreen = ({ navigation }) => {
   const fetchDriverData = async () => {
     setIsLoading(true);
     try {
+      // Fetch driver profile first to get vehicle type and rating
       const profileResult = await firestoreService.getUserProfile(driverId!);
+      console.log('User profile result:', profileResult);
+
+      let vehicleType = 'boda'; // Default fallback
+
       if (profileResult.success && profileResult.userProfile) {
+        // Set the vehicle type from profile
+        vehicleType = profileResult.userProfile.vehicleInfo?.vehicleType ||
+                     profileResult.userProfile.vehicleType ||
+                     'boda';
+
+        console.log('Vehicle type from profile:', vehicleType);
+        setDriverVehicleType(vehicleType);
+
+        // Set rating from profile
         setStats(prev => ({
           ...prev,
           rating: profileResult.userProfile.rating || 0,
         }));
+      } else {
+        // If no profile found, use default and optionally create profile
+        setDriverVehicleType(vehicleType);
+        console.log('Using default vehicle type:', vehicleType);
       }
 
+      // Then fetch deliveries for earnings calculation
       const deliveriesResult = await firestoreService.getUserDeliveries(driverId!, 'driver');
       if (deliveriesResult.success) {
         const allDeliveries = deliveriesResult.deliveries;
@@ -241,6 +261,40 @@ const HomeScreen = ({ navigation }) => {
     });
   };
 
+  const setupDeliverySubscription = (location: {latitude: number, longitude: number}, vehicleType: string | null) => {
+    console.log('Setting up delivery subscription with location and vehicle filter:', location, vehicleType);
+
+    // Clear any existing subscription
+    if (unsubscribeRequestsRef.current) {
+      unsubscribeRequestsRef.current();
+      unsubscribeRequestsRef.current = null;
+    }
+
+    try {
+      unsubscribeRequestsRef.current = firestoreService.subscribeToDeliveryRequests(
+        {
+          latitude: location.latitude,
+          longitude: location.longitude
+        },
+        vehicleType,
+        (requests) => {
+          if (!Array.isArray(requests)) {
+            console.warn('Invalid requests format:', requests);
+            return;
+          }
+          setNearbyRequests(requests);
+        },
+        (error) => {
+          console.error('Delivery request subscription error:', error);
+          setLocationError('Failed to load delivery requests');
+        }
+      );
+    } catch (error) {
+      console.error('Error setting up subscription:', error);
+      setLocationError('Failed to setup request subscription');
+    }
+  };
+
   const startLocationTracking = async () => {
     console.log('Starting location tracking...');
     try {
@@ -317,49 +371,14 @@ const HomeScreen = ({ navigation }) => {
         }
       );
 
-      // Now setup delivery request subscription
-      // Use the initialLocation directly since we know it's available
-      setupDeliverySubscription(initialLocation);
+      // Now setup delivery request subscription with vehicle type filter
+      setupDeliverySubscription(initialLocation, driverVehicleType);
     } catch (error) {
       console.error('Location tracking failed:', error);
       setLocationError(error.message || 'Failed to start tracking');
       setIsOnline(false);
     } finally {
       setIsLocationLoading(false);
-    }
-  };
-
-  // Separate function for setting up the subscription
-  const setupDeliverySubscription = (location: {latitude: number, longitude: number}) => {
-    console.log('Setting up delivery subscription with location:', location);
-
-    // Clear any existing subscription
-    if (unsubscribeRequestsRef.current) {
-      unsubscribeRequestsRef.current();
-      unsubscribeRequestsRef.current = null;
-    }
-
-    try {
-      unsubscribeRequestsRef.current = firestoreService.subscribeToDeliveryRequests(
-        {
-          latitude: location.latitude,
-          longitude: location.longitude
-        },
-        (requests) => {
-          if (!Array.isArray(requests)) {
-            console.warn('Invalid requests format:', requests);
-            return;
-          }
-          setNearbyRequests(requests);
-        },
-        (error) => {
-          console.error('Delivery request subscription error:', error);
-          setLocationError('Failed to load delivery requests');
-        }
-      );
-    } catch (error) {
-      console.error('Error setting up subscription:', error);
-      setLocationError('Failed to setup request subscription');
     }
   };
 
@@ -375,12 +394,30 @@ const HomeScreen = ({ navigation }) => {
     fetchDriverData();
     fetchActiveDeliveries();
     if (isOnline && driverLocation) {
-      setupDeliverySubscription(driverLocation);
+      setupDeliverySubscription(driverLocation, driverVehicleType);
     }
   };
 
   const handleToggleOnline = async () => {
     if (isLocationLoading) return;
+
+    // Ensure we have a vehicle type before going online
+    if (!driverVehicleType) {
+      Alert.alert(
+        'Vehicle Type Required',
+        'Please complete your vehicle information in your profile before going online.',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('ProfileTab', {
+              screen: 'ProfileMain',
+              params: { showVehicleForm: true }
+            })
+          }
+        ]
+      );
+      return;
+    }
 
     const newStatus = !isOnline;
     setIsOnline(newStatus);
@@ -492,6 +529,15 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#0066cc" />
           <Text style={styles.loadingText}>Getting your location...</Text>
+        </View>
+      )}
+
+      {/* Vehicle Type Filter Indicator */}
+      {isOnline && driverVehicleType && (
+        <View style={styles.vehicleFilterContainer}>
+          <Text style={styles.vehicleFilterText}>
+            Showing requests for: {driverVehicleType}
+          </Text>
         </View>
       )}
 
@@ -623,6 +669,12 @@ const HomeScreen = ({ navigation }) => {
                    request.packageDetails.size === 'medium' ? 'Medium' : 'Large'} package
                 </Text>
               </View>
+              {request.vehicleType && (
+                <View style={styles.vehicleInfo}>
+                  <Ionicons name="car-outline" size={14} color="#666" />
+                  <Text style={styles.vehicleInfoText}>{request.vehicleType}</Text>
+                </View>
+              )}
                 <Text style={styles.viewButtonText}>View</Text>
             </View>
           </TouchableOpacity>
@@ -690,6 +742,19 @@ const styles = StyleSheet.create({
   statusDescription: {
     fontSize: 13,
     color: '#666',
+  },
+  vehicleFilterContainer: {
+    backgroundColor: '#e6f2ff',
+    padding: 10,
+    marginHorizontal: 15,
+    marginBottom: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  vehicleFilterText: {
+    color: '#0066cc',
+    fontSize: 14,
+    fontWeight: '500',
   },
   activeDeliveriesContainer: {
     backgroundColor: '#fff',
@@ -892,6 +957,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666',
     marginLeft: 6,
+  },
+  vehicleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  vehicleInfoText: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 4,
+    fontStyle: 'italic',
   },
   viewButtonText: {
     fontSize: 12,

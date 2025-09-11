@@ -639,8 +639,8 @@ const NavigationScreen = ({ route, navigation }) => {
             <View style={styles.deliveryInfoItem}>
               <Text style={styles.deliveryInfoLabel}>Package</Text>
               <Text style={styles.deliveryInfoValue}>
-                {deliveryData.packageSize === 'small' ? 'Small' :
-                 deliveryData.packageSize === 'medium' ? 'Medium' : 'Large'}
+                {deliveryData.packageDetails.size === 'small' ? 'Small' :
+                 deliveryData.packageDetails.size === 'medium' ? 'Medium' : 'Large'}
               </Text>
             </View>
             <View style={styles.deliveryInfoItem}>
