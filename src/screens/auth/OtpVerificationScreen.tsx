@@ -116,7 +116,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.title}>Verification Code</Text>
         <Text style={styles.subtitle}>
-          Enter the 6-digit code sent to +255 {phoneNumber}
+          Enter the 6-digit code sent to {phoneNumber}
         </Text>
 
         <View style={styles.otpContainer}>
