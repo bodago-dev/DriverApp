@@ -484,7 +484,7 @@ class FirestoreService {
     );
   }
 
-  // Vehicle type compatibility check for the three specific types
+  // Vehicle type compatibility check - exact matching only
   isVehicleTypeCompatible(driverVehicleType, requestVehicleType) {
     // If no vehicle type filtering is needed (driverVehicleType is null),
     // or if the request doesn't specify a vehicle type, show all requests
@@ -496,27 +496,7 @@ class FirestoreService {
     const normalizedDriverType = driverVehicleType.toLowerCase().trim();
     const normalizedRequestType = requestVehicleType.toLowerCase().trim();
 
-    // Define vehicle type compatibility for the three specific types
-    const vehicleCompatibility = {
-      // Boda boda (motorcycle) - can only handle boda boda requests
-      'boda boda': ['boda boda', 'boda'],
-      'boda': ['boda boda', 'boda'],
-
-      // Bajaji (tuk-tuk) - can handle bajaji and boda boda requests
-      'bajaji': ['bajaji', 'boda boda', 'boda'],
-
-      // Guta (car) - can handle all types of requests
-      'guta': ['guta', 'bajaji', 'boda boda', 'boda', 'car', 'sedan']
-    };
-
-    // Check if the driver's vehicle type is compatible with the request
-    for (const [key, compatibleTypes] of Object.entries(vehicleCompatibility)) {
-      if (compatibleTypes.includes(normalizedDriverType)) {
-        return compatibleTypes.includes(normalizedRequestType);
-      }
-    }
-
-    // If no specific compatibility rules match, check direct match
+    // For exact matching, we only show requests that exactly match the driver's vehicle type
     return normalizedDriverType === normalizedRequestType;
   }
 
