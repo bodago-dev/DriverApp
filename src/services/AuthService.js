@@ -106,53 +106,95 @@ class AuthService {
 
     // Verify OTP and complete authentication
     async verifyOTP(verificationId, otp) {
-        try {
-            // Create credential using verificationId and OTP
-            const credential = PhoneAuthProvider.credential(verificationId, otp);
-
-            // Sign in with the credential
-            const userCredential = await signInWithCredential(this.auth, credential);
-            const user = userCredential.user;
-
-            // Check if user profile exists
-            try {
-                const userDoc = await getDoc(doc(this.db, 'users', user.uid));
-
-                if (!userDoc.exists()) {
-                    // New user - needs to complete profile
-                    return {
-                        success: true,
-                        user,
-                        isNewUser: true
-                    };
-                } else {
-                    // Existing user
-                    this.userProfile = userDoc.data();
-                    return {
-                        success: true,
-                        user,
-                        userProfile: this.userProfile,
-                        isNewUser: false
-                    };
-                }
-            } catch (error) {
-                // If permission error, treat as new user
-                if (error.code === 'permission-denied') {
-                    return {
-                        success: true,
-                        user,
-                        isNewUser: true
-                    };
-                }
-                throw error;
-            }
-        } catch (error) {
-            console.error('Error verifying OTP:', error);
-            return {
-                success: false,
-                error: this.getErrorMessage(error)
-            };
+      try {
+        // Validate OTP format first
+        if (!otp || otp.length !== 6 || !/^\d+$/.test(otp)) {
+          return {
+            success: false,
+            error: 'Please enter a valid 6-digit verification code',
+            errorCode: 'invalid-format'
+          };
         }
+
+        // Create credential using verificationId and OTP
+        const credential = PhoneAuthProvider.credential(verificationId, otp);
+
+        // Sign in with the credential
+        const userCredential = await signInWithCredential(this.auth, credential);
+        const user = userCredential.user;
+
+        // Check if user profile exists
+        try {
+          const userDoc = await getDoc(doc(this.db, 'users', user.uid));
+
+          if (!userDoc.exists()) {
+            // New user - needs to complete profile
+            return {
+              success: true,
+              user,
+              isNewUser: true
+            };
+          } else {
+            // Existing user
+            this.userProfile = userDoc.data();
+            return {
+              success: true,
+              user,
+              userProfile: this.userProfile,
+              isNewUser: false
+            };
+          }
+        } catch (error) {
+          // If permission error, treat as new user
+          if (error.code === 'permission-denied') {
+            return {
+              success: true,
+              user,
+              isNewUser: true
+            };
+          }
+          throw error;
+        }
+      } catch (error) {
+        if (__DEV__) {
+            console.error('Error verifying OTP:', error);
+          }
+
+        // Enhanced error handling for OTP verification
+        let errorMessage = 'An unexpected error occurred';
+        let errorCode = 'unknown-error';
+
+        // Extract error code from different possible locations
+        const errorCodeFromError = error.code || error?.nativeErrorCode || error?.userInfo?.code;
+
+        switch (errorCodeFromError) {
+          case 'auth/invalid-verification-code':
+            errorMessage = 'The verification code is incorrect. Please check and try again.';
+            errorCode = 'auth/invalid-verification-code';
+            break;
+          case 'auth/code-expired':
+            errorMessage = 'The verification code has expired. Please request a new code.';
+            errorCode = 'auth/code-expired';
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = 'Too many attempts. Please try again later.';
+            errorCode = 'auth/too-many-requests';
+            break;
+          case 'auth/session-expired':
+            errorMessage = 'The verification session has expired. Please start over.';
+            errorCode = 'auth/session-expired';
+            break;
+          default:
+            errorMessage = this.getErrorMessage(error);
+            errorCode = errorCodeFromError || 'unknown-error';
+        }
+
+        return {
+          success: false,
+          error: errorMessage,
+          errorCode: errorCode
+        };
+      }
     }
 
     // Create user profile after successful authentication

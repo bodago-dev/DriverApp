@@ -9,6 +9,8 @@ import {
   Platform,
   ScrollView,
   Alert,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 
 import { getAuth } from '@react-native-firebase/auth';
@@ -22,6 +24,15 @@ const OtpVerificationScreen = ({ route, navigation }) => {
   const [isVerifying, setIsVerifying] = useState(false);
   
   const inputRefs = Array(6).fill(0).map(() => React.createRef());
+
+  const [hasError, setHasError] = useState(false);
+
+  // Add this useEffect to clear error state when user starts typing
+  useEffect(() => {
+    if (hasError && otp.some(digit => digit !== '')) {
+      setHasError(false);
+    }
+  }, [otp, hasError]);
 
   useEffect(() => {
     // Start countdown timer
@@ -82,17 +93,27 @@ const OtpVerificationScreen = ({ route, navigation }) => {
   };
 
   // Update the handleVerify function in OtpVerificationScreen.tsx
-    const handleVerify = async () => {
-      const otpCode = otp.join('');
-      if (otpCode.length !== 6) {
-        Alert.alert('Incomplete OTP', 'Please enter the complete 6-digit verification code.');
-        return;
-      }
+  const handleVerify = async () => {
+    const otpCode = otp.join('');
 
-  setIsVerifying(true);
+    // Validate OTP length
+    if (otpCode.length !== 6) {
+      Alert.alert('Incomplete OTP', 'Please enter the complete 6-digit verification code.');
+      return;
+    }
 
-  try {
+    // Validate that all digits are numbers
+    if (!/^\d+$/.test(otpCode)) {
+      Alert.alert('Invalid Code', 'Please enter only numbers in the verification code.');
+      return;
+    }
+
+    setIsVerifying(true);
+    setHasError(false); // Clear any previous error state
+
+    try {
       const result = await authService.verifyOTP(verificationId, otpCode);
+
       if (result.success) {
         // If it's a new user, pass the phone number to the onboarding flow
         if (result.isNewUser) {
@@ -100,20 +121,43 @@ const OtpVerificationScreen = ({ route, navigation }) => {
           // We don't need explicit navigation here
         }
       } else {
-        Alert.alert('Error', result.error || 'Verification failed');
+        // Show user-friendly error message from the service
+        Alert.alert('Verification Failed', result.error || 'Invalid verification code');
+
+        // Set error state for visual feedback
+        setHasError(true);
+
+        // Clear OTP fields for incorrect codes (but not for other errors)
+        if (result.errorCode === 'auth/invalid-verification-code' ||
+            result.errorCode === 'auth/code-expired') {
+          setOtp(['', '', '', '', '', '']);
+          // Focus on first input field
+          if (inputRefs[0] && inputRefs[0].current) {
+            setTimeout(() => {
+              inputRefs[0].current.focus();
+            }, 100);
+          }
+        }
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Verification failed');
+      // This catch block should only handle unexpected errors, not OTP verification errors
+      console.error('Unexpected error during verification:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      setOtp(['', '', '', '', '', '']);
+      setHasError(true);
     } finally {
       setIsVerifying(false);
     }
   };
 
   return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContainer}
+                  keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>Verification Code</Text>
         <Text style={styles.subtitle}>
           Enter the 6-digit code sent to {phoneNumber}
@@ -124,9 +168,15 @@ const OtpVerificationScreen = ({ route, navigation }) => {
             <TextInput
               key={index}
               ref={inputRefs[index]}
-              style={styles.otpInput}
+              style={[
+                  styles.otpInput,
+                  hasError && styles.otpInputError
+              ]}
               value={digit}
-              onChangeText={(text) => handleOtpChange(text, index)}
+              onChangeText={(text) => {
+                  handleOtpChange(text, index);
+                  setHasError(false);
+              }}
               onKeyPress={(e) => handleKeyPress(e, index)}
               keyboardType="number-pad"
               maxLength={1}
@@ -173,6 +223,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
+</TouchableWithoutFeedback>
   );
 };
 
@@ -185,6 +236,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
     justifyContent: 'center',
+    paddingBottom: 20,
   },
   title: {
     fontSize: 24,
@@ -258,6 +310,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0066cc',
     textDecorationLine: 'underline',
+  },
+  otpInputError: {
+    borderColor: '#f44336',
+    backgroundColor: '#ffebee',
+    borderWidth: 2,
   },
 });
 
