@@ -17,6 +17,118 @@ import firestoreService from '../../services/FirestoreService';
 import Geolocation from 'react-native-geolocation-service';
 import { PERMISSIONS, request, check, RESULTS } from 'react-native-permissions';
 import locationService from '../../services/LocationService';
+import Config from 'react-native-config';
+
+const apiKey = Config.GOOGLE_PLACES_API_KEY;
+
+// Directions Service
+class DirectionsService {
+  async getRouteDirections(origin, destination, mode = 'driving') {
+    try {
+      const originStr = `${origin.latitude},${origin.longitude}`;
+      const destinationStr = `${destination.latitude},${destination.longitude}`;
+
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originStr}&destination=${destinationStr}&mode=${mode}&key=${apiKey}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status === 'OK') {
+        return this.parseRouteData(data);
+      } else {
+        throw new Error(`Directions API error: ${data.status}`);
+      }
+    } catch (error) {
+      console.error('Error fetching directions:', error);
+      throw error;
+    }
+  }
+
+  parseRouteData(data) {
+    const route = data.routes[0];
+    const leg = route.legs[0];
+
+    // Decode polyline points
+    const points = this.decodePolyline(route.overview_polyline.points);
+
+    // Extract turn-by-turn instructions
+    const steps = leg.steps.map(step => ({
+      instruction: this.stripHTML(step.html_instructions),
+      distance: step.distance.text,
+      duration: step.duration.text,
+      maneuver: step.maneuver || '',
+      polyline: this.decodePolyline(step.polyline.points),
+      startLocation: {
+        latitude: step.start_location.lat,
+        longitude: step.start_location.lng
+      },
+      endLocation: {
+        latitude: step.end_location.lat,
+        longitude: step.end_location.lng
+      }
+    }));
+
+    return {
+      distance: leg.distance,
+      duration: leg.duration,
+      points,
+      steps,
+      bounds: this.calculateBounds(points)
+    };
+  }
+
+  decodePolyline(encoded) {
+    const points = [];
+    let index = 0, len = encoded.length;
+    let lat = 0, lng = 0;
+
+    while (index < len) {
+      let b, shift = 0, result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      points.push({
+        latitude: lat / 1e5,
+        longitude: lng / 1e5
+      });
+    }
+
+    return points;
+  }
+
+  stripHTML(html) {
+    return html.replace(/<[^>]*>/g, '');
+  }
+
+  calculateBounds(points) {
+    const lats = points.map(p => p.latitude);
+    const lngs = points.map(p => p.longitude);
+
+    return {
+      minLat: Math.min(...lats),
+      maxLat: Math.max(...lats),
+      minLng: Math.min(...lngs),
+      maxLng: Math.max(...lngs)
+    };
+  }
+}
+
+const directionsService = new DirectionsService();
 
 // Default coordinates for Dar es Salaam with reasonable zoom level
 const DEFAULT_REGION = {
@@ -41,14 +153,24 @@ const NavigationScreen = ({ route, navigation }) => {
   const [mapReady, setMapReady] = useState(false);
   const [lastStep, setLastStep] = useState('');
   const [shouldAnimateRegion, setShouldAnimateRegion] = useState(true);
+  const [routeData, setRouteData] = useState<any>(null);
+  const [currentInstructionIndex, setCurrentInstructionIndex] = useState(0);
+  const [driverHeading, setDriverHeading] = useState(0);
+  const [isFetchingRoute, setIsFetchingRoute] = useState(false);
 
   const unsubscribeDeliveryRef = useRef<() => void>();
   const watchId = useRef<number>();
   const mapRef = useRef<MapView>(null);
 
   // Memoized Marker component
-  const MemoizedMarker = useMemo(() => React.memo(({ coordinate, title, description, icon }: any) => (
-    <Marker coordinate={coordinate} title={title} description={description}>
+  const MemoizedMarker = useMemo(() => React.memo(({ coordinate, title, description, icon, rotation = 0 }: any) => (
+    <Marker
+      coordinate={coordinate}
+      title={title}
+      description={description}
+      anchor={{ x: 0.5, y: 0.5 }}
+      rotation={rotation}
+    >
       {icon}
     </Marker>
   )), []);
@@ -142,6 +264,68 @@ const NavigationScreen = ({ route, navigation }) => {
     };
   }, [currentStep]);
 
+  // Fetch route directions using Google Directions API
+  const fetchRouteDirections = useCallback(async (startLocation: any, endLocation: any) => {
+    if (!startLocation || !endLocation) return null;
+
+    setIsFetchingRoute(true);
+    try {
+      const directions = await directionsService.getRouteDirections(startLocation, endLocation);
+      setRouteData(directions);
+
+      // Update route coordinates with actual road path
+      setRouteCoordinates(directions.points);
+
+      // Fit map to route bounds
+      if (mapRef.current && directions.points.length > 0) {
+        mapRef.current.fitToCoordinates(directions.points, {
+          edgePadding: { top: 100, right: 100, bottom: 200, left: 100 },
+          animated: true,
+        });
+      }
+
+      return directions;
+    } catch (error) {
+      console.error('Error fetching directions:', error);
+      // Fallback to straight line
+      setRouteCoordinates([startLocation, endLocation]);
+      return null;
+    } finally {
+      setIsFetchingRoute(false);
+    }
+  }, []);
+
+  // Calculate remaining route based on current location
+  const calculateRemainingRoute = (currentLocation: any, route: any) => {
+    if (!route || !route.points) return route;
+
+    // Find the closest point on the route to current location
+    let closestIndex = 0;
+    let minDistance = Infinity;
+
+    route.points.forEach((point: any, index: number) => {
+      const distance = locationService.calculateDistance(currentLocation, point);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = index;
+      }
+    });
+
+    // Return remaining points from current position
+    return {
+      ...route,
+      points: route.points.slice(closestIndex),
+      steps: route.steps.filter((step: any, index: number) => index >= closestIndex)
+    };
+  };
+
+  // Enhanced ETA calculation with route data
+  const updateETAWithRoute = (remainingRoute: any) => {
+    if (remainingRoute && remainingRoute.duration) {
+      setEta(`${remainingRoute.duration.text} (${remainingRoute.distance.text})`);
+    }
+  };
+
   // Update ETA calculation
   const updateETA = useCallback((currentDelivery: any, currentDriverLocation: {latitude: number, longitude: number} | null) => {
     if (!currentDriverLocation || !currentDelivery) {
@@ -162,6 +346,24 @@ const NavigationScreen = ({ route, navigation }) => {
       setEta('Destination not available');
     }
   }, [currentStep]);
+
+  // Update current instruction based on driver location
+  const updateCurrentInstruction = useCallback((currentLocation: any) => {
+    if (!routeData || !routeData.steps || routeData.steps.length === 0) return;
+
+    let closestStepIndex = 0;
+    let minDistance = Infinity;
+
+    routeData.steps.forEach((step: any, index: number) => {
+      const distance = locationService.calculateDistance(currentLocation, step.startLocation);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestStepIndex = index;
+      }
+    });
+
+    setCurrentInstructionIndex(closestStepIndex);
+  }, [routeData]);
 
   // Update map region when location or step changes
   useEffect(() => {
@@ -200,11 +402,14 @@ const NavigationScreen = ({ route, navigation }) => {
       : getCoordinates(currentDeliveryData.dropoffLocation);
 
     if (destination) {
-      setRouteCoordinates([currentLocation, destination]);
+      // Use actual route data if available, otherwise fallback to straight line
+      if (!routeData) {
+        setRouteCoordinates([currentLocation, destination]);
+      }
     } else {
       setRouteCoordinates([]);
     }
-  }, [deliveryData, currentStep]);
+  }, [deliveryData, currentStep, routeData]);
 
   // Fetch delivery data and setup subscriptions
   useEffect(() => {
@@ -273,6 +478,19 @@ const NavigationScreen = ({ route, navigation }) => {
       backHandler.remove();
     };
   }, [deliveryId, updateETA]);
+
+  // Fetch route when step changes
+  useEffect(() => {
+    if (driverLocation && deliveryData) {
+      const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
+        ? getCoordinates(deliveryData.pickupLocation)
+        : getCoordinates(deliveryData.dropoffLocation);
+
+      if (destination) {
+        fetchRouteDirections(driverLocation, destination);
+      }
+    }
+  }, [currentStep, driverLocation, deliveryData, fetchRouteDirections]);
 
   const handleBackPress = async () => {
     Alert.alert(
@@ -343,10 +561,24 @@ const NavigationScreen = ({ route, navigation }) => {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           };
+
+          // Update driver heading if available
+          if (position.coords.heading !== null) {
+            setDriverHeading(position.coords.heading);
+          }
+
           setDriverLocation(newLocation);
           firestoreService.updateDriverLocation(driverId, newLocation);
           updateRouteCoordinates(newLocation, deliveryData);
-          updateETA(deliveryData, newLocation);
+          updateCurrentInstruction(newLocation);
+
+          // Update ETA with actual route data
+          if (routeData) {
+            const remainingRoute = calculateRemainingRoute(newLocation, routeData);
+            updateETAWithRoute(remainingRoute);
+          } else {
+            updateETA(deliveryData, newLocation);
+          }
         },
         (error) => {
           console.error('Location tracking error:', error);
@@ -503,6 +735,27 @@ const NavigationScreen = ({ route, navigation }) => {
     }
   };
 
+  // Turn-by-turn instructions component
+  const TurnByTurnInstructions = () => {
+    if (!routeData || !routeData.steps || routeData.steps.length === 0 || currentInstructionIndex >= routeData.steps.length) {
+      return null;
+    }
+
+    const currentStep = routeData.steps[currentInstructionIndex];
+
+    return (
+      <View style={styles.instructionsContainer}>
+        <Text style={styles.instructionsTitle}>Next Instruction</Text>
+        <Text style={styles.instructionText}>
+          {currentStep?.instruction || 'Follow the route'}
+        </Text>
+        <Text style={styles.instructionDetail}>
+          {currentStep?.distance} • {currentStep?.duration}
+        </Text>
+      </View>
+    );
+  };
+
   if (isLoading || !deliveryData) {
     return (
       <View style={styles.loadingContainer}>
@@ -521,29 +774,43 @@ const NavigationScreen = ({ route, navigation }) => {
         style={styles.map}
         region={mapRegion}
         initialRegion={DEFAULT_REGION}
-        showsUserLocation={true}
-        followsUserLocation={false}
+        showsUserLocation={false} // We use custom marker for rotation
         showsMyLocationButton={true}
         showsCompass={true}
         toolbarEnabled={true}
         onMapReady={() => setMapReady(true)}
         onLayout={() => setMapReady(true)}
       >
-        {/* Driver Marker */}
+        {/* Driver Marker with Rotation */}
         {driverLocation && (
           <MemoizedMarker
             coordinate={driverLocation}
             title="You"
             description="Your current location"
+            rotation={driverHeading}
             icon={(
               <View style={[styles.markerContainer, { backgroundColor: '#0066cc' }]}>
                 <Ionicons
                   name="car"
-                  size={16}
+                  size={20}
                   color="#fff"
+                  style={{
+                    transform: [{ rotate: `${driverHeading}deg` }]
+                  }}
                 />
               </View>
             )}
+          />
+        )}
+
+        {/* Enhanced Route Polyline */}
+        {routeCoordinates.length > 0 && (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeWidth={5}
+            strokeColor="#0066cc"
+            lineCap="round"
+            lineJoin="round"
           />
         )}
 
@@ -556,12 +823,12 @@ const NavigationScreen = ({ route, navigation }) => {
             icon={(
               <View style={[
                 styles.markerContainer,
-                { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#e6f2ff' : '#ccc' }
+                { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#4caf50' : '#ccc' }
               ]}>
                 <Ionicons
                   name="locate"
                   size={16}
-                  color={(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#666'}
+                  color="#fff"
                 />
               </View>
             )}
@@ -577,24 +844,15 @@ const NavigationScreen = ({ route, navigation }) => {
             icon={(
               <View style={[
                 styles.markerContainer,
-                { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ffebee' : '#ccc' }
+                { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#ccc' }
               ]}>
                 <Ionicons
                   name="location"
                   size={16}
-                  color={(currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#666'}
+                  color="#fff"
                 />
               </View>
             )}
-          />
-        )}
-
-        {/* Route Line */}
-        {routeCoordinates.length > 0 && (
-          <Polyline
-            coordinates={routeCoordinates}
-            strokeWidth={3}
-            strokeColor="#0066cc"
           />
         )}
       </MapView>
@@ -610,10 +868,43 @@ const NavigationScreen = ({ route, navigation }) => {
             <View style={styles.etaContainer}>
               <Ionicons name="time-outline" size={16} color="#0066cc" />
               <Text style={styles.etaText}>{eta}</Text>
+              {isFetchingRoute && (
+                <ActivityIndicator size="small" color="#0066cc" style={styles.routeLoadingIndicator} />
+              )}
             </View>
           </View>
 
           <Text style={styles.navigationInstructions}>{getStepInstructions()}</Text>
+
+          {/* Turn-by-turn Instructions */}
+          <TurnByTurnInstructions />
+
+          {/* Navigation Controls */}
+          <View style={styles.navigationControls}>
+            <TouchableOpacity
+              style={styles.navControlButton}
+              onPress={handleOpenExternalNavigation}
+            >
+              <Ionicons name="navigate" size={20} color="#0066cc" />
+              <Text style={styles.navControlText}>Open in Maps</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.navControlButton}
+              onPress={() => {
+                // Re-center map on driver
+                if (mapRef.current && driverLocation) {
+                  mapRef.current.animateToRegion({
+                    ...mapRegion,
+                    ...driverLocation
+                  }, 500);
+                }
+              }}
+            >
+              <Ionicons name="locate" size={20} color="#0066cc" />
+              <Text style={styles.navControlText}>My Location</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.addressContainer}>
             <View style={styles.addressCard}>
@@ -639,8 +930,8 @@ const NavigationScreen = ({ route, navigation }) => {
             <View style={styles.deliveryInfoItem}>
               <Text style={styles.deliveryInfoLabel}>Package</Text>
               <Text style={styles.deliveryInfoValue}>
-                {deliveryData.packageDetails.size === 'small' ? 'Small' :
-                 deliveryData.packageDetails.size === 'medium' ? 'Medium' : 'Large'}
+                {deliveryData.packageDetails?.size === 'small' ? 'Small' :
+                 deliveryData.packageDetails?.size === 'medium' ? 'Medium' : 'Large'}
               </Text>
             </View>
             <View style={styles.deliveryInfoItem}>
@@ -660,7 +951,7 @@ const NavigationScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Cancel Button moved here */}
+          {/* Cancel Button */}
           <TouchableOpacity
             style={[styles.cancelButton, isLoading && styles.cancelButtonDisabled]}
             onPress={handleBackPress}
@@ -705,18 +996,18 @@ const styles = StyleSheet.create({
     height: '60%',
   },
   markerContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
   navigationPanel: {
     flex: 1,
@@ -735,7 +1026,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom:5,
+    marginBottom: 5,
   },
   navigationTitle: {
     fontSize: 18,
@@ -756,10 +1047,58 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 5,
   },
+  routeLoadingIndicator: {
+    marginLeft: 5,
+  },
   navigationInstructions: {
     fontSize: 14,
     color: '#666',
     marginBottom: 15,
+  },
+  instructionsContainer: {
+    backgroundColor: '#e6f2ff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: '#0066cc',
+  },
+  instructionsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0066cc',
+    marginBottom: 4,
+  },
+  instructionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 2,
+  },
+  instructionDetail: {
+    fontSize: 12,
+    color: '#666',
+  },
+  navigationControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 15,
+  },
+  navControlButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  navControlText: {
+    color: '#0066cc',
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 8,
   },
   addressContainer: {
     marginBottom: 15,
@@ -799,11 +1138,6 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
   },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   contactContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -827,37 +1161,42 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   cancelButton: {
-      backgroundColor: '#ffebee',
-      borderRadius: 8,
-      paddingVertical: 14,
-      alignItems: 'center',
-      marginTop: 10,
-      marginBottom: 15,
-      borderWidth: 1,
-      borderColor: '#ff6b6b',
-    },
-    cancelButtonDisabled: {
-      backgroundColor: '#f5f5f5',
-      borderColor: '#ccc',
-    },
-    cancelButtonText: {
-      color: '#ff6b6b',
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    actionButton: {
-      position: 'absolute',
-      bottom: 20,
-      left: 20,
-      right: 20,
-      backgroundColor: '#0066cc',
-      borderRadius: 8,
-      paddingVertical: 14,
-      alignItems: 'center',
-    },
-    actionButtonDisabled: {
-      backgroundColor: '#99ccff',
-    },
+    backgroundColor: '#ffebee',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#ff6b6b',
+  },
+  cancelButtonDisabled: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#ccc',
+  },
+  cancelButtonText: {
+    color: '#ff6b6b',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  actionButton: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#0066cc',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  actionButtonDisabled: {
+    backgroundColor: '#99ccff',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default NavigationScreen;

@@ -145,7 +145,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
     if (countdown > 0) {
       const timer = setTimeout(() => {
         setCountdown(countdown - 1);
-      }, 10000);
+      }, 3000);
 
       return () => clearTimeout(timer);
     } else {
