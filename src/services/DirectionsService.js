@@ -1,7 +1,7 @@
 // services/DirectionsService.js
 import Config from 'react-native-config';
 
-const GOOGLE_MAPS_API_KEY = Config.GOOGLE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = Config.GOOGLE_PLACES_API_KEY;
 
 class DirectionsService {
   async getRouteDirections(origin, destination, mode = 'driving') {

@@ -162,19 +162,6 @@ const NavigationScreen = ({ route, navigation }) => {
   const watchId = useRef<number>();
   const mapRef = useRef<MapView>(null);
 
-  // Memoized Marker component
-  const MemoizedMarker = useMemo(() => React.memo(({ coordinate, title, description, icon, rotation = 0 }: any) => (
-    <Marker
-      coordinate={coordinate}
-      title={title}
-      description={description}
-      anchor={{ x: 0.5, y: 0.5 }}
-      rotation={rotation}
-    >
-      {icon}
-    </Marker>
-  )), []);
-
   // Helper function to extract coordinates from location object
   const getCoordinates = (location: any) => {
     if (!location) return null;
@@ -767,92 +754,93 @@ const NavigationScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Map View */}
+      {/* Map View - Updated to match TrackingScreen.tsx */}
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         region={mapRegion}
-        initialRegion={DEFAULT_REGION}
-        showsUserLocation={false} // We use custom marker for rotation
+        onRegionChangeComplete={setMapRegion}
+        mapType="standard"
+        userInterfaceStyle="light"
+        showsUserLocation={true}
         showsMyLocationButton={true}
         showsCompass={true}
         toolbarEnabled={true}
         onMapReady={() => setMapReady(true)}
         onLayout={() => setMapReady(true)}
       >
-        {/* Driver Marker with Rotation */}
-        {driverLocation && (
-          <MemoizedMarker
-            coordinate={driverLocation}
-            title="You"
-            description="Your current location"
-            rotation={driverHeading}
-            icon={(
-              <View style={[styles.markerContainer, { backgroundColor: '#0066cc' }]}>
-                <Ionicons
-                  name="car"
-                  size={20}
-                  color="#fff"
-                  style={{
-                    transform: [{ rotate: `${driverHeading}deg` }]
-                  }}
-                />
-              </View>
-            )}
-          />
-        )}
-
-        {/* Enhanced Route Polyline */}
-        {routeCoordinates.length > 0 && (
-          <Polyline
-            coordinates={routeCoordinates}
-            strokeWidth={5}
-            strokeColor="#0066cc"
-            lineCap="round"
-            lineJoin="round"
-          />
-        )}
-
         {/* Pickup Marker */}
         {deliveryData.pickupLocation?.coordinates && (
-          <MemoizedMarker
+          <Marker
             coordinate={getCoordinates(deliveryData.pickupLocation)}
             title="Pickup"
             description={deliveryData.pickupLocation.address}
-            icon={(
-              <View style={[
-                styles.markerContainer,
-                { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#4caf50' : '#ccc' }
-              ]}>
-                <Ionicons
-                  name="locate"
-                  size={16}
-                  color="#fff"
-                />
-              </View>
-            )}
-          />
+          >
+            <View style={[
+              styles.markerContainer,
+              { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#ccc' }
+            ]}>
+              <Ionicons name="locate" size={16} color="#fff" />
+            </View>
+          </Marker>
         )}
 
         {/* Dropoff Marker */}
         {deliveryData.dropoffLocation?.coordinates && (
-          <MemoizedMarker
+          <Marker
             coordinate={getCoordinates(deliveryData.dropoffLocation)}
             title="Dropoff"
             description={deliveryData.dropoffLocation.address}
-            icon={(
-              <View style={[
-                styles.markerContainer,
-                { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#ccc' }
-              ]}>
-                <Ionicons
-                  name="location"
-                  size={16}
-                  color="#fff"
-                />
-              </View>
-            )}
+          >
+            <View style={[
+              styles.markerContainer,
+              { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#ccc' }
+            ]}>
+              <Ionicons name="location" size={16} color="#fff" />
+            </View>
+          </Marker>
+        )}
+
+        {/* Driver Marker with rotation */}
+        {driverLocation && (
+          <Marker
+            coordinate={driverLocation}
+            rotation={driverHeading || 0}
+            anchor={{ x: 0.5, y: 0.5 }}
+            title="You"
+            description="Your current location"
+          >
+            <View style={styles.driverMarker}>
+              <Ionicons
+                name="car"
+                size={20}
+                color="#fff"
+                style={{
+                  transform: [{ rotate: `${driverHeading}deg` }]
+                }}
+              />
+            </View>
+          </Marker>
+        )}
+
+        {/* Actual Route Polyline */}
+        {routeCoordinates.length > 0 && (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeWidth={4}
+            strokeColor="#0066cc"
+            lineDashPattern={[1, 0]}
+          />
+        )}
+
+        {/* Fallback straight line if no route available */}
+        {routeCoordinates.length === 0 && driverLocation && deliveryData.dropoffLocation?.coordinates && (
+          <Polyline
+            coordinates={[driverLocation, getCoordinates(deliveryData.dropoffLocation)]}
+            strokeWidth={3}
+            strokeColor="#0066cc"
+            lineDashPattern={[2]}
           />
         )}
       </MapView>
@@ -996,18 +984,33 @@ const styles = StyleSheet.create({
     height: '60%',
   },
   markerContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  driverMarker: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: '#0066cc',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
-    elevation: 4,
+    elevation: 5,
   },
   navigationPanel: {
     flex: 1,
