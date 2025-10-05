@@ -21,6 +21,19 @@ import Config from 'react-native-config';
 
 const apiKey = Config.GOOGLE_PLACES_API_KEY;
 
+// Debounce utility function
+const debounce = (func: Function, wait: number) => {
+  let timeout: NodeJS.Timeout;
+  return function executedFunction(...args: any[]) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
 // Directions Service
 class DirectionsService {
   async getRouteDirections(origin, destination, mode = 'driving') {
@@ -157,6 +170,7 @@ const NavigationScreen = ({ route, navigation }) => {
   const [currentInstructionIndex, setCurrentInstructionIndex] = useState(0);
   const [driverHeading, setDriverHeading] = useState(0);
   const [isFetchingRoute, setIsFetchingRoute] = useState(false);
+  const [isMapAnimating, setIsMapAnimating] = useState(false);
 
   const unsubscribeDeliveryRef = useRef<() => void>();
   const watchId = useRef<number>();
@@ -313,7 +327,7 @@ const NavigationScreen = ({ route, navigation }) => {
     }
   };
 
-  // Update ETA calculation
+  // Update ETA calculation using LocationService
   const updateETA = useCallback((currentDelivery: any, currentDriverLocation: {latitude: number, longitude: number} | null) => {
     if (!currentDriverLocation || !currentDelivery) {
       setEta('Calculating ETA...');
@@ -325,60 +339,57 @@ const NavigationScreen = ({ route, navigation }) => {
       : getCoordinates(currentDelivery.dropoffLocation);
 
     if (destination) {
-      const distance = locationService.calculateDistance(currentDriverLocation, destination);
-      const averageSpeed = 30; // km/h
-      const timeInMinutes = Math.round((distance / averageSpeed) * 60);
-      setEta(`${timeInMinutes} min (${distance.toFixed(1)} km)`);
+      // Use the LocationService's calculateETA function
+      const etaResult = locationService.calculateETA(currentDriverLocation, destination);
+      setEta(`${etaResult.formattedTime} (${etaResult.distance.toFixed(1)} km)`);
     } else {
       setEta('Destination not available');
     }
   }, [currentStep]);
 
-  // Update current instruction based on driver location
-  const updateCurrentInstruction = useCallback((currentLocation: any) => {
-    if (!routeData || !routeData.steps || routeData.steps.length === 0) return;
+  // Debounced location update to prevent jerking
+  const debouncedLocationUpdate = useRef(
+    debounce((newLocation: any, driverId: string, currentDeliveryData: any, currentRouteData: any) => {
+      setDriverLocation(newLocation);
+      firestoreService.updateDriverLocation(driverId, newLocation);
+      updateRouteCoordinates(newLocation, currentDeliveryData);
+      updateCurrentInstruction(newLocation);
 
-    let closestStepIndex = 0;
-    let minDistance = Infinity;
-
-    routeData.steps.forEach((step: any, index: number) => {
-      const distance = locationService.calculateDistance(currentLocation, step.startLocation);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestStepIndex = index;
+      // Update ETA without triggering map movement for small location changes
+      if (currentRouteData) {
+        const remainingRoute = calculateRemainingRoute(newLocation, currentRouteData);
+        updateETAWithRoute(remainingRoute);
+      } else {
+        updateETA(currentDeliveryData, newLocation);
       }
-    });
+    }, 2000) // Update every 2 seconds instead of immediately
+  ).current;
 
-    setCurrentInstructionIndex(closestStepIndex);
-  }, [routeData]);
-
-  // Update map region when location or step changes
+  // Update map region when location or step changes (optimized)
   useEffect(() => {
-    if (driverLocation && deliveryData && mapReady) {
+    if (driverLocation && deliveryData && mapReady && !isMapAnimating) {
       const newRegion = calculateMapRegion(driverLocation, deliveryData);
-      setMapRegion(newRegion);
 
-      const shouldAnimate =
-        lastStep === '' ||
-        shouldAnimateRegion ||
-        (currentStep !== lastStep && shouldAnimateForStepChange(currentStep));
+      // Only update if region has significantly changed
+      const regionChangedSignificantly =
+        Math.abs(mapRegion.latitude - newRegion.latitude) > 0.0001 ||
+        Math.abs(mapRegion.longitude - newRegion.longitude) > 0.0001 ||
+        Math.abs(mapRegion.latitudeDelta - newRegion.latitudeDelta) > 0.01 ||
+        Math.abs(mapRegion.longitudeDelta - newRegion.longitudeDelta) > 0.01;
 
-      if (mapRef.current) {
-        if (shouldAnimate) {
-          mapRef.current.animateToRegion(newRegion, 500);
-        } else {
-          mapRef.current.setCamera({
-            center: {
-              latitude: newRegion.latitude,
-              longitude: newRegion.longitude,
-            },
-            zoom: calculateZoomLevel(newRegion),
-          }, { duration: 300 });
+      if (regionChangedSignificantly) {
+        setIsMapAnimating(true);
+        setMapRegion(newRegion);
+
+        if (mapRef.current) {
+          mapRef.current.animateToRegion(newRegion, 1000); // Slower, smoother animation
         }
+
+        // Reset animation flag after delay
+        setTimeout(() => setIsMapAnimating(false), 1000);
       }
-      setShouldAnimateRegion(false);
     }
-  }, [driverLocation, currentStep, deliveryData, calculateMapRegion, mapReady, shouldAnimateRegion]);
+  }, [driverLocation, currentStep, deliveryData, calculateMapRegion, mapReady, isMapAnimating]);
 
   // Update route coordinates when location changes
   const updateRouteCoordinates = useCallback((currentLocation: {latitude: number, longitude: number}, currentDeliveryData: any) => {
@@ -554,18 +565,8 @@ const NavigationScreen = ({ route, navigation }) => {
             setDriverHeading(position.coords.heading);
           }
 
-          setDriverLocation(newLocation);
-          firestoreService.updateDriverLocation(driverId, newLocation);
-          updateRouteCoordinates(newLocation, deliveryData);
-          updateCurrentInstruction(newLocation);
-
-          // Update ETA with actual route data
-          if (routeData) {
-            const remainingRoute = calculateRemainingRoute(newLocation, routeData);
-            updateETAWithRoute(remainingRoute);
-          } else {
-            updateETA(deliveryData, newLocation);
-          }
+          // Use debounced location update to prevent jerking
+          debouncedLocationUpdate(newLocation, driverId, deliveryData, routeData);
         },
         (error) => {
           console.error('Location tracking error:', error);
@@ -722,6 +723,24 @@ const NavigationScreen = ({ route, navigation }) => {
     }
   };
 
+  // Update current instruction based on driver location
+  const updateCurrentInstruction = useCallback((currentLocation: any) => {
+    if (!routeData || !routeData.steps || routeData.steps.length === 0) return;
+
+    let closestStepIndex = 0;
+    let minDistance = Infinity;
+
+    routeData.steps.forEach((step: any, index: number) => {
+      const distance = locationService.calculateDistance(currentLocation, step.startLocation);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestStepIndex = index;
+      }
+    });
+
+    setCurrentInstructionIndex(closestStepIndex);
+  }, [routeData]);
+
   // Turn-by-turn instructions component
   const TurnByTurnInstructions = () => {
     if (!routeData || !routeData.steps || routeData.steps.length === 0 || currentInstructionIndex >= routeData.steps.length) {
@@ -754,7 +773,7 @@ const NavigationScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Map View - Updated to match TrackingScreen.tsx */}
+      {/* Map View */}
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}

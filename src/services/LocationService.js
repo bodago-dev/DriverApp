@@ -246,16 +246,45 @@ notifyLocationListeners(location,error = null){
  }
 
  // Get estimated time of arrival
- calculateETA(currentLocation, destination, averageSpeed = 30){
+ calculateETA(currentLocation, destination, averageSpeed = 30) {
+   try {
+     if (!currentLocation || !destination) {
+       return {
+         distance: 0,
+         timeInMinutes: 0,
+         formattedTime: 'N/A'
+       };
+     }
+
      const distance = this.calculateDistance(currentLocation, destination);
-     const timeInHours = distance / averageSpeed;
+
+     // Adjust speed based on distance (shorter distances might have slower average speeds)
+     let adjustedSpeed = averageSpeed;
+     if (distance < 2) {
+       adjustedSpeed = 15; // Slower for short distances due to traffic
+     } else if (distance > 20) {
+       adjustedSpeed = 40; // Faster for longer highway distances
+     }
+
+     const timeInHours = distance / adjustedSpeed;
      const timeInMinutes = Math.round(timeInHours * 60);
 
-     return{
-         distance: distance,
-         timeInMinutes: timeInMinutes,
-         formattedTime: this.formatTime(timeInMinutes)
+     // Add buffer for traffic, pickup/dropoff time
+     const totalMinutes = timeInMinutes + 5; // 5-minute buffer
+
+     return {
+       distance: distance,
+       timeInMinutes: totalMinutes,
+       formattedTime: this.formatTime(totalMinutes)
      };
+   } catch (error) {
+     console.error('Error calculating ETA:', error);
+     return {
+       distance: 0,
+       timeInMinutes: 0,
+       formattedTime: 'N/A'
+     };
+   }
  }
 
  // Format time in minutes to readable format
