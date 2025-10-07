@@ -17,131 +17,10 @@ import firestoreService from '../../services/FirestoreService';
 import Geolocation from 'react-native-geolocation-service';
 import { PERMISSIONS, request, check, RESULTS } from 'react-native-permissions';
 import locationService from '../../services/LocationService';
+import directionsService from '../../services/DirectionsService';
 import Config from 'react-native-config';
 
 const apiKey = Config.GOOGLE_PLACES_API_KEY;
-
-// Debounce utility function
-const debounce = (func: Function, wait: number) => {
-  let timeout: NodeJS.Timeout;
-  return function executedFunction(...args: any[]) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
-
-// Directions Service
-class DirectionsService {
-  async getRouteDirections(origin, destination, mode = 'driving') {
-    try {
-      const originStr = `${origin.latitude},${origin.longitude}`;
-      const destinationStr = `${destination.latitude},${destination.longitude}`;
-
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originStr}&destination=${destinationStr}&mode=${mode}&key=${apiKey}`;
-
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.status === 'OK') {
-        return this.parseRouteData(data);
-      } else {
-        throw new Error(`Directions API error: ${data.status}`);
-      }
-    } catch (error) {
-      console.error('Error fetching directions:', error);
-      throw error;
-    }
-  }
-
-  parseRouteData(data) {
-    const route = data.routes[0];
-    const leg = route.legs[0];
-
-    // Decode polyline points
-    const points = this.decodePolyline(route.overview_polyline.points);
-
-    // Extract turn-by-turn instructions
-    const steps = leg.steps.map(step => ({
-      instruction: this.stripHTML(step.html_instructions),
-      distance: step.distance.text,
-      duration: step.duration.text,
-      maneuver: step.maneuver || '',
-      polyline: this.decodePolyline(step.polyline.points),
-      startLocation: {
-        latitude: step.start_location.lat,
-        longitude: step.start_location.lng
-      },
-      endLocation: {
-        latitude: step.end_location.lat,
-        longitude: step.end_location.lng
-      }
-    }));
-
-    return {
-      distance: leg.distance,
-      duration: leg.duration,
-      points,
-      steps,
-      bounds: this.calculateBounds(points)
-    };
-  }
-
-  decodePolyline(encoded) {
-    const points = [];
-    let index = 0, len = encoded.length;
-    let lat = 0, lng = 0;
-
-    while (index < len) {
-      let b, shift = 0, result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-
-      points.push({
-        latitude: lat / 1e5,
-        longitude: lng / 1e5
-      });
-    }
-
-    return points;
-  }
-
-  stripHTML(html) {
-    return html.replace(/<[^>]*>/g, '');
-  }
-
-  calculateBounds(points) {
-    const lats = points.map(p => p.latitude);
-    const lngs = points.map(p => p.longitude);
-
-    return {
-      minLat: Math.min(...lats),
-      maxLat: Math.max(...lats),
-      minLng: Math.min(...lngs),
-      maxLng: Math.max(...lngs)
-    };
-  }
-}
-
-const directionsService = new DirectionsService();
 
 // Default coordinates for Dar es Salaam with reasonable zoom level
 const DEFAULT_REGION = {
@@ -152,7 +31,7 @@ const DEFAULT_REGION = {
 };
 
 const NavigationScreen = ({ route, navigation }) => {
-  const { deliveryId } = route.params;
+  const { deliveryId, request: deliveryRequest } = route.params;
 
   const [isLoading, setIsLoading] = useState(true);
   const [deliveryData, setDeliveryData] = useState<any>(null);
@@ -164,77 +43,117 @@ const NavigationScreen = ({ route, navigation }) => {
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [lastStep, setLastStep] = useState('');
-  const [shouldAnimateRegion, setShouldAnimateRegion] = useState(true);
   const [routeData, setRouteData] = useState<any>(null);
   const [currentInstructionIndex, setCurrentInstructionIndex] = useState(0);
   const [driverHeading, setDriverHeading] = useState(0);
   const [isFetchingRoute, setIsFetchingRoute] = useState(false);
   const [isMapAnimating, setIsMapAnimating] = useState(false);
 
-  const unsubscribeDeliveryRef = useRef<() => void>();
-  const watchId = useRef<number>();
+  const unsubscribeDeliveryRef = useRef<(() => void) | null>(null);
+  const watchId = useRef<number | null>(null);
   const mapRef = useRef<MapView>(null);
+  const lastRouteFetchRef = useRef<number>(0);
+  const routeFetchCooldownRef = useRef<number>(30000);
+  const isMountedRef = useRef<boolean>(true);
 
-  // Helper function to extract coordinates from location object
-  const getCoordinates = (location: any) => {
+  // Initialize and cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+    console.log('📍 NavigationScreen mounted with deliveryId:', deliveryId);
+
+    return () => {
+      console.log('📍 NavigationScreen unmounting');
+      isMountedRef.current = false;
+
+      // Cleanup all subscriptions and watchers
+      if (unsubscribeDeliveryRef.current) {
+        unsubscribeDeliveryRef.current();
+        unsubscribeDeliveryRef.current = null;
+      }
+
+      if (watchId.current !== null) {
+        Geolocation.clearWatch(watchId.current);
+        watchId.current = null;
+      }
+
+      // Clear any timeouts or intervals
+      setRouteCoordinates([]);
+      setDriverLocation(null);
+    };
+  }, [deliveryId]);
+
+  // Improved coordinate extraction function
+  const getCoordinates = useCallback((location: any) => {
     if (!location) return null;
 
-    // Handle Firestore GeoPoint
-    if (typeof location.latitude === 'function') {
-      return {
-        latitude: location.latitude(),
-        longitude: location.longitude()
-      };
+    try {
+      // Handle Firestore GeoPoint (has latitude/longitude functions)
+      if (location && typeof location.latitude === 'function' && typeof location.longitude === 'function') {
+        return {
+          latitude: location.latitude(),
+          longitude: location.longitude()
+        };
+      }
+
+      // Handle nested coordinates
+      if (location.coordinates && location.coordinates.latitude && location.coordinates.longitude) {
+        return {
+          latitude: location.coordinates.latitude,
+          longitude: location.coordinates.longitude
+        };
+      }
+
+      // Handle direct coordinates
+      if (location.latitude !== undefined && location.longitude !== undefined) {
+        return {
+          latitude: location.latitude,
+          longitude: location.longitude
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error extracting coordinates:', error, location);
+      return null;
     }
+  }, []);
 
-    // Handle nested coordinates
-    if (location.coordinates) {
-      return location.coordinates;
-    }
+  // Get pickup and dropoff coordinates with validation
+  const pickupCoords = useMemo(() => {
+    return getCoordinates(deliveryData?.pickupLocation);
+  }, [deliveryData, getCoordinates]);
 
-    // Handle direct coordinates
-    if (location.latitude && location.longitude) {
-      return {
-        latitude: location.latitude,
-        longitude: location.longitude
-      };
-    }
+  const dropoffCoords = useMemo(() => {
+    return getCoordinates(deliveryData?.dropoffLocation);
+  }, [deliveryData, getCoordinates]);
 
-    return null;
-  };
-
-  const calculateZoomLevel = (region: Region) => {
-    const angle = region.longitudeDelta;
-    const zoom = Math.round(Math.log(360 / angle) / Math.LN2);
-    return Math.min(zoom, 18);
-  };
-
-  const shouldAnimateForStepChange = (step: string) => {
-    return (lastStep === 'arrived_pickup' && step === 'picked_up') ||
-           (lastStep === 'arrived_dropoff' && step === 'delivered');
-  };
-
-  // Calculate the optimal map region to show both driver and destination
-  const calculateMapRegion = useCallback((currentDriverLoc: {latitude: number, longitude: number} | null, currentDeliveryData: any): Region => {
-    if (!currentDriverLoc || !currentDeliveryData) {
+  // Calculate the optimal map region
+  const calculateMapRegion = useCallback((currentDriverLoc: {latitude: number, longitude: number} | null): Region => {
+    if (!currentDriverLoc) {
       return DEFAULT_REGION;
     }
 
     let destination;
-
     if (currentStep === 'accepted' || currentStep === 'arrived_pickup') {
-      destination = getCoordinates(currentDeliveryData.pickupLocation);
+      destination = pickupCoords;
     } else {
-      destination = getCoordinates(currentDeliveryData.dropoffLocation);
+      destination = dropoffCoords;
     }
 
-    if (!destination || !currentDriverLoc.latitude || !currentDriverLoc.longitude) {
-      return DEFAULT_REGION;
+    if (!destination) {
+      return {
+        ...currentDriverLoc,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      };
     }
 
     // Combine all points to fit them on the map
-    const allCoords = [currentDriverLoc, destination];
+    const allCoords = [currentDriverLoc, destination].filter(coord => coord !== null);
+
+    if (allCoords.length === 0) {
+      return DEFAULT_REGION;
+    }
 
     let minLat = Infinity, maxLat = -Infinity;
     let minLon = Infinity, maxLon = -Infinity;
@@ -251,280 +170,114 @@ const NavigationScreen = ({ route, navigation }) => {
     const midLat = (minLat + maxLat) / 2;
     const midLon = (minLon + maxLon) / 2;
 
-    // Add some padding to the deltas to ensure both points are visible
-    const latDelta = (maxLat - minLat) * 1.5;
-    const lonDelta = (maxLon - minLon) * 1.5;
+    // Add padding to the deltas
+    const latDelta = (maxLat - minLat) * 1.8;
+    const lonDelta = (maxLon - minLon) * 1.8;
 
-    // Ensure minimum deltas to prevent zooming too far in
-    const minDelta = 0.01;
+    // Ensure minimum deltas
+    const minDelta = 0.02;
     return {
       latitude: midLat,
       longitude: midLon,
       latitudeDelta: Math.max(minDelta, latDelta),
       longitudeDelta: Math.max(minDelta, lonDelta),
     };
-  }, [currentStep]);
+  }, [currentStep, pickupCoords, dropoffCoords]);
 
-  // Fetch route directions using Google Directions API
-  const fetchRouteDirections = useCallback(async (startLocation: any, endLocation: any) => {
-    if (!startLocation || !endLocation) return null;
+  // Fetch route directions with cooldown
+  const fetchRouteDirections = useCallback(async (startLocation: any, endLocation: any, forceRefresh: boolean = false) => {
+    if (!startLocation || !endLocation || !isMountedRef.current) {
+      return null;
+    }
+
+    const now = Date.now();
+    if (!forceRefresh && now - lastRouteFetchRef.current < routeFetchCooldownRef.current) {
+      return null;
+    }
 
     setIsFetchingRoute(true);
     try {
       const directions = await directionsService.getRouteDirections(startLocation, endLocation);
-      setRouteData(directions);
 
-      // Update route coordinates with actual road path
-      setRouteCoordinates(directions.points);
+      if (directions && directions.points && directions.points.length > 0 && isMountedRef.current) {
+        setRouteData(directions);
+        setRouteCoordinates(directions.points);
+        lastRouteFetchRef.current = now;
 
-      // Fit map to route bounds
-      if (mapRef.current && directions.points.length > 0) {
-        mapRef.current.fitToCoordinates(directions.points, {
-          edgePadding: { top: 100, right: 100, bottom: 200, left: 100 },
-          animated: true,
-        });
+        // Fit map to route with delay to ensure map is ready
+        setTimeout(() => {
+          if (mapRef.current && isMountedRef.current) {
+            mapRef.current.fitToCoordinates(directions.points, {
+              edgePadding: { top: 100, right: 100, bottom: 200, left: 100 },
+              animated: true,
+            });
+          }
+        }, 500);
+
+        return directions;
+      } else if (isMountedRef.current) {
+        // Fallback to straight line
+        setRouteCoordinates([startLocation, endLocation]);
+        return null;
       }
-
-      return directions;
     } catch (error) {
       console.error('Error fetching directions:', error);
-      // Fallback to straight line
-      setRouteCoordinates([startLocation, endLocation]);
+      // Fallback to straight line only if component is still mounted
+      if (isMountedRef.current) {
+        setRouteCoordinates([startLocation, endLocation]);
+      }
       return null;
     } finally {
-      setIsFetchingRoute(false);
+      if (isMountedRef.current) {
+        setIsFetchingRoute(false);
+      }
     }
   }, []);
 
-  // Calculate remaining route based on current location
-  const calculateRemainingRoute = (currentLocation: any, route: any) => {
-    if (!route || !route.points) return route;
-
-    // Find the closest point on the route to current location
-    let closestIndex = 0;
-    let minDistance = Infinity;
-
-    route.points.forEach((point: any, index: number) => {
-      const distance = locationService.calculateDistance(currentLocation, point);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestIndex = index;
-      }
-    });
-
-    // Return remaining points from current position
-    return {
-      ...route,
-      points: route.points.slice(closestIndex),
-      steps: route.steps.filter((step: any, index: number) => index >= closestIndex)
-    };
-  };
-
-  // Enhanced ETA calculation with route data
-  const updateETAWithRoute = (remainingRoute: any) => {
-    if (remainingRoute && remainingRoute.duration) {
-      setEta(`${remainingRoute.duration.text} (${remainingRoute.distance.text})`);
-    }
-  };
-
-  // Update ETA calculation using LocationService
-  const updateETA = useCallback((currentDelivery: any, currentDriverLocation: {latitude: number, longitude: number} | null) => {
-    if (!currentDriverLocation || !currentDelivery) {
+  // Update ETA
+  const updateETA = useCallback((currentDriverLocation: {latitude: number, longitude: number} | null) => {
+    if (!currentDriverLocation || !isMountedRef.current) {
       setEta('Calculating ETA...');
       return;
     }
 
     const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? getCoordinates(currentDelivery.pickupLocation)
-      : getCoordinates(currentDelivery.dropoffLocation);
+      ? pickupCoords
+      : dropoffCoords;
 
-    if (destination) {
-      // Use the LocationService's calculateETA function
+    if (destination && isMountedRef.current) {
       const etaResult = locationService.calculateETA(currentDriverLocation, destination);
       setEta(`${etaResult.formattedTime} (${etaResult.distance.toFixed(1)} km)`);
-    } else {
+    } else if (isMountedRef.current) {
       setEta('Destination not available');
     }
-  }, [currentStep]);
+  }, [currentStep, pickupCoords, dropoffCoords]);
 
-  // Debounced location update to prevent jerking
-  const debouncedLocationUpdate = useRef(
-    debounce((newLocation: any, driverId: string, currentDeliveryData: any, currentRouteData: any) => {
-      setDriverLocation(newLocation);
-      firestoreService.updateDriverLocation(driverId, newLocation);
-      updateRouteCoordinates(newLocation, currentDeliveryData);
-      updateCurrentInstruction(newLocation);
-
-      // Update ETA without triggering map movement for small location changes
-      if (currentRouteData) {
-        const remainingRoute = calculateRemainingRoute(newLocation, currentRouteData);
-        updateETAWithRoute(remainingRoute);
-      } else {
-        updateETA(currentDeliveryData, newLocation);
-      }
-    }, 2000) // Update every 2 seconds instead of immediately
-  ).current;
-
-  // Update map region when location or step changes (optimized)
-  useEffect(() => {
-    if (driverLocation && deliveryData && mapReady && !isMapAnimating) {
-      const newRegion = calculateMapRegion(driverLocation, deliveryData);
-
-      // Only update if region has significantly changed
-      const regionChangedSignificantly =
-        Math.abs(mapRegion.latitude - newRegion.latitude) > 0.0001 ||
-        Math.abs(mapRegion.longitude - newRegion.longitude) > 0.0001 ||
-        Math.abs(mapRegion.latitudeDelta - newRegion.latitudeDelta) > 0.01 ||
-        Math.abs(mapRegion.longitudeDelta - newRegion.longitudeDelta) > 0.01;
-
-      if (regionChangedSignificantly) {
-        setIsMapAnimating(true);
-        setMapRegion(newRegion);
-
-        if (mapRef.current) {
-          mapRef.current.animateToRegion(newRegion, 1000); // Slower, smoother animation
-        }
-
-        // Reset animation flag after delay
-        setTimeout(() => setIsMapAnimating(false), 1000);
-      }
-    }
-  }, [driverLocation, currentStep, deliveryData, calculateMapRegion, mapReady, isMapAnimating]);
-
-  // Update route coordinates when location changes
-  const updateRouteCoordinates = useCallback((currentLocation: {latitude: number, longitude: number}, currentDeliveryData: any) => {
-    if (!currentDeliveryData) return;
-
-    const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? getCoordinates(currentDeliveryData.pickupLocation)
-      : getCoordinates(currentDeliveryData.dropoffLocation);
-
-    if (destination) {
-      // Use actual route data if available, otherwise fallback to straight line
-      if (!routeData) {
-        setRouteCoordinates([currentLocation, destination]);
-      }
-    } else {
-      setRouteCoordinates([]);
-    }
-  }, [deliveryData, currentStep, routeData]);
-
-  // Fetch delivery data and setup subscriptions
-  useEffect(() => {
-    if (!deliveryId) {
-      Alert.alert('Error', 'Delivery ID is missing.');
-      navigation.goBack();
-      return;
-    }
-
-    const fetchAndSubscribeDelivery = async () => {
-      setIsLoading(true);
-      try {
-        const initialDeliveryResult = await firestoreService.getDelivery(deliveryId);
-        if (initialDeliveryResult.success && initialDeliveryResult.delivery) {
-          const initialData = initialDeliveryResult.delivery;
-          setDeliveryData(initialData);
-          setCurrentStep(initialData.status || 'accepted');
-
-          if (initialData.customerId) {
-            const customerResult = await firestoreService.getUserProfile(initialData.customerId);
-            if (customerResult.success) {
-              setCustomerInfo(customerResult.userProfile);
-            }
-          }
-
-          unsubscribeDeliveryRef.current = firestoreService.subscribeToDeliveryUpdates(
-            deliveryId,
-            (updatedDelivery) => {
-              if (updatedDelivery) {
-                setDeliveryData(updatedDelivery);
-                setCurrentStep(updatedDelivery.status);
-                updateETA(updatedDelivery, driverLocation);
-              }
-            }
-          );
-
-          await startLocationTracking(initialData.driverId);
-          updateETA(initialData, driverLocation);
-        } else {
-          Alert.alert('Error', initialDeliveryResult.error || 'Failed to load delivery details.');
-          navigation.goBack();
-        }
-      } catch (error) {
-        console.error('Error fetching delivery:', error);
-        Alert.alert('Error', 'An unexpected error occurred while loading delivery.');
-        navigation.goBack();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAndSubscribeDelivery();
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      handleBackPress();
-      return true;
-    });
-
-    return () => {
-      if (unsubscribeDeliveryRef.current) {
-        unsubscribeDeliveryRef.current();
-      }
-      if (watchId.current !== undefined) {
-        Geolocation.clearWatch(watchId.current);
-      }
-      backHandler.remove();
-    };
-  }, [deliveryId, updateETA]);
-
-  // Fetch route when step changes
-  useEffect(() => {
-    if (driverLocation && deliveryData) {
-      const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-        ? getCoordinates(deliveryData.pickupLocation)
-        : getCoordinates(deliveryData.dropoffLocation);
-
-      if (destination) {
-        fetchRouteDirections(driverLocation, destination);
-      }
-    }
-  }, [currentStep, driverLocation, deliveryData, fetchRouteDirections]);
-
-  const handleBackPress = async () => {
-    Alert.alert(
-      'Cancel Delivery?',
-      'Are you sure you want to cancel this delivery? This may affect your rating.',
-      [
-        { text: 'No, Continue', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: async () => {
-            const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
-            await firestoreService.updateDeliveryStatus(deliveryId, 'cancelled', additionalData);
-            navigation.goBack();
-          },
-        },
-      ]
-    );
-  };
-
+  // Request location permission
   const requestLocationPermission = async () => {
     try {
-      const granted = await request(
-        Platform.select({
-          android: PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
-          ios: PERMISSIONS.IOS.LOCATION_WHEN_IN_USE,
-        }),
-      );
-      return granted === 'granted';
+      const permission = Platform.select({
+        android: PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
+        ios: PERMISSIONS.IOS.LOCATION_WHEN_IN_USE,
+      });
+
+      if (!permission) {
+        console.log('No permission defined for this platform');
+        return false;
+      }
+
+      const result = await request(permission);
+      return result === RESULTS.GRANTED;
     } catch (err) {
       console.warn('Location permission error:', err);
       return false;
     }
   };
 
+  // Start location tracking
   const startLocationTracking = async (driverId: string) => {
+    if (!isMountedRef.current) return false;
+
     try {
       const hasPermission = await requestLocationPermission();
       if (!hasPermission) {
@@ -535,13 +288,12 @@ const NavigationScreen = ({ route, navigation }) => {
       const position = await new Promise<Geolocation.GeoPosition>((resolve, reject) => {
         Geolocation.getCurrentPosition(
           resolve,
-          (error) => {
-            console.error('Initial position error:', error);
-            reject(error);
-          },
+          reject,
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
         );
       });
+
+      if (!isMountedRef.current) return false;
 
       const initialLocation = {
         latitude: position.coords.latitude,
@@ -550,25 +302,43 @@ const NavigationScreen = ({ route, navigation }) => {
 
       setDriverLocation(initialLocation);
       await firestoreService.updateDriverLocation(driverId, initialLocation);
-      updateRouteCoordinates(initialLocation, deliveryData);
       setLocationError(null);
 
+      // Set initial map region
+      const initialRegion = calculateMapRegion(initialLocation);
+      setMapRegion(initialRegion);
+
+      // Start watching position with mount checks
       watchId.current = Geolocation.watchPosition(
         (position) => {
+          if (!isMountedRef.current) return;
+
           const newLocation = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           };
 
-          // Update driver heading if available
-          if (position.coords.heading !== null) {
+          if (position.coords.heading !== null && isMountedRef.current) {
             setDriverHeading(position.coords.heading);
           }
 
-          // Use debounced location update to prevent jerking
-          debouncedLocationUpdate(newLocation, driverId, deliveryData, routeData);
+          // Update location with debounce
+          setTimeout(() => {
+            if (!isMountedRef.current) return;
+
+            setDriverLocation(newLocation);
+            firestoreService.updateDriverLocation(driverId, newLocation);
+            updateETA(newLocation);
+
+            // Update map region for significant location changes
+            if (mapRef.current && mapReady && !isMapAnimating) {
+              const newRegion = calculateMapRegion(newLocation);
+              setMapRegion(newRegion);
+            }
+          }, 2000);
         },
         (error) => {
+          if (!isMountedRef.current) return;
           console.error('Location tracking error:', error);
           setLocationError(error.message);
         },
@@ -582,11 +352,146 @@ const NavigationScreen = ({ route, navigation }) => {
 
       return true;
     } catch (error) {
+      if (!isMountedRef.current) return false;
       console.error('Location error:', error);
       setLocationError('Could not get location');
       return false;
     }
   };
+
+  // Back handler
+  useEffect(() => {
+    const handleBackPress = () => {
+      Alert.alert(
+        'Cancel Delivery?',
+        'Are you sure you want to cancel this delivery? This may affect your rating.',
+        [
+          { text: 'No, Continue', style: 'cancel' },
+          {
+            text: 'Yes, Cancel',
+            style: 'destructive',
+            onPress: async () => {
+              const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
+              await firestoreService.updateDeliveryStatus(deliveryId, 'cancelled', additionalData);
+              navigation.goBack();
+            },
+          },
+        ]
+      );
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    return () => {
+      backHandler.remove();
+    };
+  }, [deliveryId, deliveryData, navigation]);
+
+  // Main data fetching
+  useEffect(() => {
+    if (!deliveryId) {
+      Alert.alert('Error', 'Delivery ID is missing.');
+      navigation.goBack();
+      return;
+    }
+
+    const initializeDelivery = async () => {
+      if (!isMountedRef.current) return;
+
+      setIsLoading(true);
+      try {
+        const initialDeliveryResult = await firestoreService.getDelivery(deliveryId);
+
+        if (!isMountedRef.current) return;
+
+        if (initialDeliveryResult.success && initialDeliveryResult.delivery) {
+          const initialData = initialDeliveryResult.delivery;
+          setDeliveryData(initialData);
+          setCurrentStep(initialData.status || 'accepted');
+
+          // Fetch customer info if needed
+          if (initialData.customerId) {
+            const customerResult = await firestoreService.getUserProfile(initialData.customerId);
+            if (customerResult.success && isMountedRef.current) {
+              setCustomerInfo(customerResult.userProfile);
+            }
+          }
+
+          // Setup delivery updates subscription
+          unsubscribeDeliveryRef.current = firestoreService.subscribeToDeliveryUpdates(
+            deliveryId,
+            (updatedDelivery) => {
+              if (updatedDelivery && isMountedRef.current) {
+                setDeliveryData(updatedDelivery);
+                setCurrentStep(updatedDelivery.status);
+                updateETA(driverLocation);
+              }
+            }
+          );
+
+          // Start location tracking
+          await startLocationTracking(initialData.driverId);
+          updateETA(driverLocation);
+        } else {
+          Alert.alert('Error', initialDeliveryResult.error || 'Failed to load delivery details.');
+          navigation.goBack();
+        }
+      } catch (error) {
+        console.error('Error fetching delivery:', error);
+        if (isMountedRef.current) {
+          Alert.alert('Error', 'An unexpected error occurred while loading delivery.');
+          navigation.goBack();
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeDelivery();
+  }, [deliveryId]);
+
+  // Fetch route when step changes or coordinates are available
+  useEffect(() => {
+    if (driverLocation && (pickupCoords || dropoffCoords) && isMountedRef.current) {
+      const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
+        ? pickupCoords
+        : dropoffCoords;
+
+      if (destination) {
+        fetchRouteDirections(driverLocation, destination, true);
+      }
+    }
+  }, [currentStep, driverLocation, pickupCoords, dropoffCoords, fetchRouteDirections]);
+
+  // Update map region when location or step changes
+  useEffect(() => {
+    if (driverLocation && mapReady && !isMapAnimating && isMountedRef.current) {
+      const newRegion = calculateMapRegion(driverLocation);
+
+      // Only update if region has significantly changed
+      const regionChangedSignificantly =
+        Math.abs(mapRegion.latitude - newRegion.latitude) > 0.001 ||
+        Math.abs(mapRegion.longitude - newRegion.longitude) > 0.001;
+
+      if (regionChangedSignificantly) {
+        setIsMapAnimating(true);
+        setMapRegion(newRegion);
+
+        if (mapRef.current) {
+          mapRef.current.animateToRegion(newRegion, 1000);
+        }
+
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            setIsMapAnimating(false);
+          }
+        }, 1000);
+      }
+    }
+  }, [driverLocation, currentStep, mapReady, isMapAnimating, calculateMapRegion, mapRegion]);
 
   const handleNextStep = async () => {
     if (locationError) {
@@ -594,9 +499,9 @@ const NavigationScreen = ({ route, navigation }) => {
       return;
     }
 
+    if (!isMountedRef.current) return;
+
     setIsLoading(true);
-    setLastStep(currentStep);
-    setShouldAnimateRegion(true);
 
     let newStatus = '';
     let navigateToCompletion = false;
@@ -629,17 +534,17 @@ const NavigationScreen = ({ route, navigation }) => {
 
         if (!result.success) {
           Alert.alert('Error', result.error || 'Failed to update delivery status.');
-        } else if (navigateToCompletion) {
+        } else if (navigateToCompletion && isMountedRef.current) {
           navigation.replace('DeliveryStatus', {
             deliveryId,
             request: {
               requestId: deliveryData.requestId,
-              pickupAddress: deliveryData.pickupLocation?.address || 'N/A',
-              dropoffAddress: deliveryData.dropoffLocation?.address || 'N/A',
-              packageSize: deliveryData.packageDetails?.size || 'medium',
-              distance: deliveryData.distance || route.params.request.distance || 'N/A',
-              fare: deliveryData.fareDetails?.total || 0,
-              paymentMethod: deliveryData.paymentMethod || 'M-Pesa (Paid)',
+              pickupAddress: deliveryData.pickupLocation?.address || deliveryRequest?.pickupAddress || 'N/A',
+              dropoffAddress: deliveryData.dropoffLocation?.address || deliveryRequest?.dropoffAddress || 'N/A',
+              packageSize: deliveryData.packageDetails?.size || deliveryRequest?.packageSize || 'medium',
+              distance: deliveryData.distance || deliveryRequest?.distance || 'N/A',
+              fare: deliveryData.fareDetails?.total || deliveryRequest?.fare || 0,
+              paymentMethod: deliveryData.paymentMethod || deliveryRequest?.paymentMethod || 'M-Pesa (Paid)',
               phoneNumber: customerInfo?.phoneNumber || 'N/A',
             }
           });
@@ -649,7 +554,10 @@ const NavigationScreen = ({ route, navigation }) => {
         Alert.alert('Error', 'Failed to update delivery status.');
       }
     }
-    setIsLoading(false);
+
+    if (isMountedRef.current) {
+      setIsLoading(false);
+    }
   };
 
   const getActionButtonText = () => {
@@ -709,45 +617,27 @@ const NavigationScreen = ({ route, navigation }) => {
   };
 
   const handleOpenExternalNavigation = () => {
-    if (!deliveryData) return;
-
     const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-      ? getCoordinates(deliveryData.pickupLocation)
-      : getCoordinates(deliveryData.dropoffLocation);
+      ? pickupCoords
+      : dropoffCoords;
 
     if (destination) {
       const label = currentStep === 'accepted' || currentStep === 'arrived_pickup'
         ? 'Pickup Location'
         : 'Dropoff Location';
       locationService.openExternalNavigation(destination, label);
+    } else {
+      Alert.alert('Error', 'Destination coordinates not available.');
     }
   };
 
-  // Update current instruction based on driver location
-  const updateCurrentInstruction = useCallback((currentLocation: any) => {
-    if (!routeData || !routeData.steps || routeData.steps.length === 0) return;
-
-    let closestStepIndex = 0;
-    let minDistance = Infinity;
-
-    routeData.steps.forEach((step: any, index: number) => {
-      const distance = locationService.calculateDistance(currentLocation, step.startLocation);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestStepIndex = index;
-      }
-    });
-
-    setCurrentInstructionIndex(closestStepIndex);
-  }, [routeData]);
-
   // Turn-by-turn instructions component
   const TurnByTurnInstructions = () => {
-    if (!routeData || !routeData.steps || routeData.steps.length === 0 || currentInstructionIndex >= routeData.steps.length) {
+    if (!routeData || !routeData.steps || routeData.steps.length === 0) {
       return null;
     }
 
-    const currentStep = routeData.steps[currentInstructionIndex];
+    const currentStep = routeData.steps[Math.min(currentInstructionIndex, routeData.steps.length - 1)];
 
     return (
       <View style={styles.instructionsContainer}>
@@ -777,92 +667,45 @@ const NavigationScreen = ({ route, navigation }) => {
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        region={mapRegion}
-        onRegionChangeComplete={setMapRegion}
-        mapType="standard"
-        userInterfaceStyle="light"
+        style={{ flex: 1 }}
+        initialRegion={DEFAULT_REGION} // ✅ safe starting point
         showsUserLocation={true}
         showsMyLocationButton={true}
         showsCompass={true}
-        toolbarEnabled={true}
-        onMapReady={() => setMapReady(true)}
-        onLayout={() => setMapReady(true)}
+        onMapReady={() => {
+          console.log('🎯 Map is ready');
+          setMapReady(true);
+
+          // Once ready, fit map to driver + destination if available
+          if (driverLocation) {
+            const destination =
+              currentStep === 'accepted' || currentStep === 'arrived_pickup'
+                ? pickupCoords
+                : dropoffCoords;
+
+            if (destination && mapRef.current) {
+              mapRef.current.fitToCoordinates(
+                [driverLocation, destination],
+                {
+                  edgePadding: { top: 100, right: 100, bottom: 200, left: 100 },
+                  animated: true,
+                }
+              );
+            }
+          }
+        }}
       >
-        {/* Pickup Marker */}
-        {deliveryData.pickupLocation?.coordinates && (
-          <Marker
-            coordinate={getCoordinates(deliveryData.pickupLocation)}
-            title="Pickup"
-            description={deliveryData.pickupLocation.address}
-          >
-            <View style={[
-              styles.markerContainer,
-              { backgroundColor: (currentStep === 'accepted' || currentStep === 'arrived_pickup') ? '#0066cc' : '#ccc' }
-            ]}>
-              <Ionicons name="locate" size={16} color="#fff" />
-            </View>
-          </Marker>
-        )}
+        {/* Markers */}
+        {pickupCoords && <Marker coordinate={pickupCoords} title="Pickup" />}
+        {dropoffCoords && <Marker coordinate={dropoffCoords} title="Dropoff" />}
+        {driverLocation && <Marker coordinate={driverLocation} title="You" />}
 
-        {/* Dropoff Marker */}
-        {deliveryData.dropoffLocation?.coordinates && (
-          <Marker
-            coordinate={getCoordinates(deliveryData.dropoffLocation)}
-            title="Dropoff"
-            description={deliveryData.dropoffLocation.address}
-          >
-            <View style={[
-              styles.markerContainer,
-              { backgroundColor: (currentStep === 'in_transit' || currentStep === 'arrived_dropoff') ? '#ff6b6b' : '#ccc' }
-            ]}>
-              <Ionicons name="location" size={16} color="#fff" />
-            </View>
-          </Marker>
-        )}
-
-        {/* Driver Marker with rotation */}
-        {driverLocation && (
-          <Marker
-            coordinate={driverLocation}
-            rotation={driverHeading || 0}
-            anchor={{ x: 0.5, y: 0.5 }}
-            title="You"
-            description="Your current location"
-          >
-            <View style={styles.driverMarker}>
-              <Ionicons
-                name="car"
-                size={20}
-                color="#fff"
-                style={{
-                  transform: [{ rotate: `${driverHeading}deg` }]
-                }}
-              />
-            </View>
-          </Marker>
-        )}
-
-        {/* Actual Route Polyline */}
-        {routeCoordinates.length > 0 && (
-          <Polyline
-            coordinates={routeCoordinates}
-            strokeWidth={4}
-            strokeColor="#0066cc"
-            lineDashPattern={[1, 0]}
-          />
-        )}
-
-        {/* Fallback straight line if no route available */}
-        {routeCoordinates.length === 0 && driverLocation && deliveryData.dropoffLocation?.coordinates && (
-          <Polyline
-            coordinates={[driverLocation, getCoordinates(deliveryData.dropoffLocation)]}
-            strokeWidth={3}
-            strokeColor="#0066cc"
-            lineDashPattern={[2]}
-          />
+        {/* Route polyline */}
+        {routeCoordinates.length > 1 && (
+          <Polyline coordinates={routeCoordinates} strokeWidth={4} strokeColor="#0066cc" />
         )}
       </MapView>
+
 
       {/* Navigation Panel */}
       <View style={styles.navigationPanel}>
@@ -899,11 +742,11 @@ const NavigationScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={styles.navControlButton}
               onPress={() => {
-                // Re-center map on driver
                 if (mapRef.current && driverLocation) {
                   mapRef.current.animateToRegion({
-                    ...mapRegion,
-                    ...driverLocation
+                    ...driverLocation,
+                    latitudeDelta: 0.05,
+                    longitudeDelta: 0.05,
                   }, 500);
                 }
               }}
@@ -918,12 +761,16 @@ const NavigationScreen = ({ route, navigation }) => {
               {(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? (
                 <>
                   <Text style={styles.addressLabel}>Pickup Location</Text>
-                  <Text style={styles.addressText}>{deliveryData.pickupLocation?.address || 'N/A'}</Text>
+                  <Text style={styles.addressText}>
+                    {deliveryData.pickupLocation?.address || deliveryRequest?.pickupAddress || 'N/A'}
+                  </Text>
                 </>
               ) : (
                 <>
                   <Text style={styles.addressLabel}>Dropoff Location</Text>
-                  <Text style={styles.addressText}>{deliveryData.dropoffLocation?.address || 'N/A'}</Text>
+                  <Text style={styles.addressText}>
+                    {deliveryData.dropoffLocation?.address || deliveryRequest?.dropoffAddress || 'N/A'}
+                  </Text>
                 </>
               )}
             </View>
@@ -932,7 +779,7 @@ const NavigationScreen = ({ route, navigation }) => {
           <View style={styles.deliveryInfo}>
             <View style={styles.deliveryInfoItem}>
               <Text style={styles.deliveryInfoLabel}>Order ID</Text>
-              <Text style={styles.deliveryInfoValue}>{deliveryId}</Text>
+              <Text style={styles.deliveryInfoValue}>#{deliveryId.substring(0, 8)}</Text>
             </View>
             <View style={styles.deliveryInfoItem}>
               <Text style={styles.deliveryInfoLabel}>Package</Text>
@@ -943,7 +790,9 @@ const NavigationScreen = ({ route, navigation }) => {
             </View>
             <View style={styles.deliveryInfoItem}>
               <Text style={styles.deliveryInfoLabel}>Fare</Text>
-              <Text style={styles.deliveryInfoValue}>{formatPrice(deliveryData.fareDetails?.total || 0)}</Text>
+              <Text style={styles.deliveryInfoValue}>
+                {formatPrice(deliveryData.fareDetails?.total || deliveryRequest?.fare || 0)}
+              </Text>
             </View>
           </View>
 
@@ -961,7 +810,24 @@ const NavigationScreen = ({ route, navigation }) => {
           {/* Cancel Button */}
           <TouchableOpacity
             style={[styles.cancelButton, isLoading && styles.cancelButtonDisabled]}
-            onPress={handleBackPress}
+            onPress={() => {
+              Alert.alert(
+                'Cancel Delivery?',
+                'Are you sure you want to cancel this delivery? This may affect your rating.',
+                [
+                  { text: 'No, Continue', style: 'cancel' },
+                  {
+                    text: 'Yes, Cancel',
+                    style: 'destructive',
+                    onPress: async () => {
+                      const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
+                      await firestoreService.updateDeliveryStatus(deliveryId, 'cancelled', additionalData);
+                      navigation.goBack();
+                    },
+                  },
+                ]
+              );
+            }}
             disabled={isLoading}
           >
             <Text style={styles.cancelButtonText}>Cancel Delivery</Text>
@@ -980,6 +846,7 @@ const NavigationScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
     </View>
+
   );
 };
 
@@ -1001,6 +868,7 @@ const styles = StyleSheet.create({
   },
   map: {
     height: '60%',
+    width: '100%'
   },
   markerContainer: {
     width: 32,
@@ -1032,11 +900,14 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   navigationPanel: {
-    flex: 1,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    marginTop: -20,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 80,
@@ -1183,23 +1054,20 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   cancelButton: {
-    backgroundColor: '#ffebee',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 15,
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#ff6b6b',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
   cancelButtonDisabled: {
-    backgroundColor: '#f5f5f5',
-    borderColor: '#ccc',
+    opacity: 0.5,
   },
   cancelButtonText: {
     color: '#ff6b6b',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   actionButton: {
     position: 'absolute',
@@ -1208,16 +1076,21 @@ const styles = StyleSheet.create({
     right: 20,
     backgroundColor: '#0066cc',
     borderRadius: 8,
-    paddingVertical: 14,
+    paddingVertical: 15,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   actionButtonDisabled: {
-    backgroundColor: '#99ccff',
+    opacity: 0.6,
   },
   actionButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
 });
 

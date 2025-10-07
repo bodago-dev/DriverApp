@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -95,73 +95,90 @@ const DeliveryRequestScreen = ({ route, navigation }: {
   const [countdown, setCountdown] = useState(100);
   const mapRef = React.useRef<MapView>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [mapKey, setMapKey] = useState(0);
 
-  // Use actual coordinates from the request if available
-  const pickupCoordinates = request.pickupLocation?.coordinates || {
-    latitude: -6.7924,
-    longitude: 39.2083,
-  };
+  // Use useMemo to prevent unnecessary recalculations
+  const pickupCoordinates = useMemo(() =>
+    request.pickupLocation?.coordinates || {
+      latitude: -6.7924,
+      longitude: 39.2083,
+    }, [request.pickupLocation?.coordinates]);
 
-  const dropoffCoordinates = request.dropoffLocation?.coordinates || {
-    latitude: -6.8124,
-    longitude: 39.2583,
-  };
+  const dropoffCoordinates = useMemo(() =>
+    request.dropoffLocation?.coordinates || {
+      latitude: -6.8124,
+      longitude: 39.2583,
+    }, [request.dropoffLocation?.coordinates]);
 
-  // Calculate the initial region
-  const initialRegion = calculateMapRegion(pickupCoordinates, dropoffCoordinates);
+  // Calculate the initial region only once using useMemo
+  const initialRegion = useMemo(() =>
+    calculateMapRegion(pickupCoordinates, dropoffCoordinates),
+    [pickupCoordinates, dropoffCoordinates]
+  );
 
-  console.log('Pickup Coordinates:', pickupCoordinates);
-  console.log('Dropoff Coordinates:', dropoffCoordinates);
-  console.log('Initial Region:', initialRegion);
-
-  // Validate coordinates
-  if (!pickupCoordinates || !dropoffCoordinates) {
-    console.error('Invalid coordinates received');
-  }
-
-  // Update map key when coordinates change
+  // Log coordinates only once on mount
   useEffect(() => {
-    setMapKey(prev => prev + 1); // Force remount when coordinates change
-  }, [pickupCoordinates, dropoffCoordinates]);
+    console.log('Pickup Coordinates:', pickupCoordinates);
+    console.log('Dropoff Coordinates:', dropoffCoordinates);
+    console.log('Initial Region:', initialRegion);
+  }, []); // Empty dependency array - run only once
 
-  // Fit map to markers when coordinates change
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (mapRef.current && pickupCoordinates && dropoffCoordinates) {
-        console.log('Fitting to coordinates...');
-        mapRef.current.fitToCoordinates([pickupCoordinates, dropoffCoordinates], {
-          edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
-          animated: true,
-        });
-      }
-    }, 500); // Small delay to ensure map is ready
-
-    return () => clearTimeout(timer);
-  }, [pickupCoordinates, dropoffCoordinates, request.id]);
-
-  // Countdown timer for request expiration
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 3000);
-
-      return () => clearTimeout(timer);
-    } else {
-      // Request expired
-      Alert.alert(
-        'Request Expired',
-        'This delivery request has expired.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+  // Fit map to markers only once when map is ready and coordinates are available
+  const fitMapToCoordinates = useCallback(() => {
+    if (mapRef.current && pickupCoordinates && dropoffCoordinates && mapReady) {
+      console.log('Fitting to coordinates...');
+      mapRef.current.fitToCoordinates([pickupCoordinates, dropoffCoordinates], {
+        edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
+        animated: true,
+      });
     }
-  }, [countdown]);
+  }, [pickupCoordinates, dropoffCoordinates, mapReady]);
+
+  // Handle map ready state
+  const handleMapReady = useCallback(() => {
+    console.log('Map ready');
+    setMapReady(true);
+    // Small delay to ensure map is fully ready before fitting
+    setTimeout(fitMapToCoordinates, 100);
+  }, [fitMapToCoordinates]);
+
+  // Handle map layout
+  const handleMapLayout = useCallback(() => {
+    console.log('Map layout completed');
+    setMapReady(true);
+    // Fit coordinates after layout
+    fitMapToCoordinates();
+  }, [fitMapToCoordinates]);
+
+  // Countdown timer for request expiration - optimized with useRef to prevent stale closures
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+
+    const countdownInterval = setInterval(() => {
+      setCountdown(prevCountdown => {
+        if (prevCountdown <= 1) {
+          clearInterval(countdownInterval);
+          // Request expired
+          Alert.alert(
+            'Request Expired',
+            'This delivery request has expired.',
+            [
+              {
+                text: 'OK',
+                onPress: () => navigation.goBack(),
+              },
+            ]
+          );
+          return 0;
+        }
+        return prevCountdown - 1;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(countdownInterval);
+      if (timer) clearTimeout(timer);
+    };
+  }, [navigation]);
 
   const handleAccept = async () => {
     setIsLoading(true);
@@ -215,7 +232,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
         throw new Error(updateDeliveryResult.error || 'Failed to update delivery status');
       }
 
-      // 4. Navigate to NavigationScreen with the correct delivery ID
+      // 4. Navigate to NavigationScreen with the correct delivery ID using replace
       navigation.replace('Navigation', {
         deliveryId: deliveryId,
         request: {
@@ -264,53 +281,30 @@ const DeliveryRequestScreen = ({ route, navigation }: {
     <View style={styles.container}>
       {/* Map View */}
       <MapView
-        key={`map-${request.id}`}
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={initialRegion}
         onMapReady={() => {
-            console.log('Map ready');
-            setMapReady(true);
+          console.log('🎯 Map is ready');
+          handleMapReady(); // ✅ actually call it
         }}
-        onLayout={() => {
-            console.log('Map layout completed');
-            setMapReady(true);
-        }}
+        onLayout={handleMapLayout}
       >
         {mapReady && (
-            <>
-              {/* Markers and polyline */}
-              <Marker
-                coordinate={pickupCoordinates}
-                title="Pickup"
-                description={request.pickupLocation?.address || request.pickupAddress}
-              >
-                <View style={[styles.markerContainer, { backgroundColor: '#e6f2ff' }]}>
-                  <Ionicons name="locate" size={16} color="#0066cc" />
-                </View>
-              </Marker>
+          <>
+            {/* Markers */}
+            <Marker coordinate={pickupCoordinates} title="Pickup" />
+            <Marker coordinate={dropoffCoordinates} title="Dropoff" />
 
-              {/* Dropoff Marker */}
-              <Marker
-                coordinate={dropoffCoordinates}
-                title="Dropoff"
-                description={request.dropoffLocation?.address || request.dropoffAddress}
-              >
-                <View style={[styles.markerContainer, { backgroundColor: '#ffebee' }]}>
-                  <Ionicons name="location" size={16} color="#ff6b6b" />
-                </View>
-              </Marker>
-
-              {/* Route Line */}
-              <Polyline
-                coordinates={[pickupCoordinates, dropoffCoordinates]}
-                strokeWidth={3}
-                strokeColor="#0066cc"
-              />
-            </>
+            {/* Straight line if directions not available */}
+            <Polyline
+              coordinates={[pickupCoordinates, dropoffCoordinates]}
+              strokeWidth={3}
+              strokeColor="#0066cc"
+            />
+          </>
         )}
-
       </MapView>
 
       {/* Countdown Timer */}
