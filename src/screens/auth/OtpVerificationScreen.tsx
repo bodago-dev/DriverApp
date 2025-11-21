@@ -49,6 +49,19 @@ const OtpVerificationScreen = ({ route, navigation }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // Add this function to clear OTP and refocus on first input
+  const clearOtpAndRefocus = () => {
+    setOtp(['', '', '', '', '', '']);
+    setHasError(true);
+
+    // Focus on the first input field after a brief delay
+    setTimeout(() => {
+      if (inputRefs[0] && inputRefs[0].current) {
+        inputRefs[0].current.focus();
+      }
+    }, 100);
+  };
+
   const handleOtpChange = (text, index) => {
     // Only allow numbers
     if (!/^\d*$/.test(text)) return;
@@ -56,6 +69,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
     const newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
+    setHasError(false); // Clear error when user starts typing
 
     // Auto-focus to next input
     if (text && index < 5) {
@@ -74,14 +88,14 @@ const OtpVerificationScreen = ({ route, navigation }) => {
       if (timer > 0) return;
 
       setIsResending(true);
+      setHasError(false); // Clear any previous errors
 
       try {
         const result = await authService.sendOTP(phoneNumber);
         if (result.success) {
           Alert.alert('OTP Sent', 'A new verification code has been sent to your phone.');
           setTimer(60);
-          // Update the verificationId if needed
-          // verificationId = result.confirmation.verificationId;
+          clearOtpAndRefocus(); // Clear existing OTP when resending
         } else {
           Alert.alert('Error', result.error || 'Failed to resend OTP');
         }
@@ -92,7 +106,6 @@ const OtpVerificationScreen = ({ route, navigation }) => {
       }
   };
 
-  // Update the handleVerify function in OtpVerificationScreen.tsx
   const handleVerify = async () => {
     const otpCode = otp.join('');
 
@@ -122,29 +135,22 @@ const OtpVerificationScreen = ({ route, navigation }) => {
         }
       } else {
         // Show user-friendly error message from the service
-        Alert.alert('Verification Failed', result.error || 'Invalid verification code');
+        // Alert.alert('Verification Failed', result.error || 'Invalid verification code');
 
-        // Set error state for visual feedback
-        setHasError(true);
-
-        // Clear OTP fields for incorrect codes (but not for other errors)
+        // Clear OTP fields and refocus for incorrect codes
         if (result.errorCode === 'auth/invalid-verification-code' ||
             result.errorCode === 'auth/code-expired') {
-          setOtp(['', '', '', '', '', '']);
-          // Focus on first input field
-          if (inputRefs[0] && inputRefs[0].current) {
-            setTimeout(() => {
-              inputRefs[0].current.focus();
-            }, 100);
-          }
+          clearOtpAndRefocus();
+        } else {
+          // For other errors, just set error state without clearing
+          setHasError(true);
         }
       }
     } catch (error) {
       // This catch block should only handle unexpected errors, not OTP verification errors
       console.error('Unexpected error during verification:', error);
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
-      setOtp(['', '', '', '', '', '']);
-      setHasError(true);
+      clearOtpAndRefocus();
     } finally {
       setIsVerifying(false);
     }
@@ -170,19 +176,25 @@ const OtpVerificationScreen = ({ route, navigation }) => {
               ref={inputRefs[index]}
               style={[
                   styles.otpInput,
-                  hasError && styles.otpInputError
+                  hasError && styles.otpInputError,
+                  isVerifying && styles.otpInputDisabled
               ]}
               value={digit}
-              onChangeText={(text) => {
-                  handleOtpChange(text, index);
-                  setHasError(false);
-              }}
+              onChangeText={(text) => handleOtpChange(text, index)}
               onKeyPress={(e) => handleKeyPress(e, index)}
               keyboardType="number-pad"
               maxLength={1}
+              editable={!isVerifying}
+              selectTextOnFocus={!isVerifying}
             />
           ))}
         </View>
+
+        {hasError && (
+          <Text style={styles.errorText}>
+            Invalid code. Please try again.
+          </Text>
+        )}
 
         <TouchableOpacity
           style={[styles.button, isVerifying && styles.buttonDisabled]}
@@ -197,24 +209,24 @@ const OtpVerificationScreen = ({ route, navigation }) => {
           <Text style={styles.resendText}>
             Didn't receive the code?{' '}
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={handleResendOtp}
             disabled={timer > 0 || isResending}>
-            <Text 
+            <Text
               style={[
-                styles.resendButton, 
+                styles.resendButton,
                 (timer > 0 || isResending) && styles.resendButtonDisabled
               ]}>
-              {isResending 
-                ? 'Sending...' 
-                : timer > 0 
-                  ? `Resend in ${timer}s` 
+              {isResending
+                ? 'Sending...'
+                : timer > 0
+                  ? `Resend in ${timer}s`
                   : 'Resend Code'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.changeNumber}
           onPress={() => navigation.goBack()}>
           <Text style={styles.changeNumberText}>
@@ -269,6 +281,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     marginHorizontal: 5,
   },
+  otpInputError: {
+    borderColor: '#f44336',
+    backgroundColor: '#ffebee',
+    borderWidth: 2,
+  },
+  otpInputDisabled: {
+    backgroundColor: '#f9f9f9',
+    opacity: 0.7,
+  },
   button: {
     backgroundColor: '#0066cc',
     borderRadius: 8,
@@ -311,10 +332,12 @@ const styles = StyleSheet.create({
     color: '#0066cc',
     textDecorationLine: 'underline',
   },
-  otpInputError: {
-    borderColor: '#f44336',
-    backgroundColor: '#ffebee',
-    borderWidth: 2,
+  errorText: {
+    color: '#f44336',
+    textAlign: 'center',
+    marginBottom: 15,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

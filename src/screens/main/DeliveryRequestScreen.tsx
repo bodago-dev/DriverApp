@@ -117,10 +117,11 @@ const DeliveryRequestScreen = ({ route, navigation }: {
 
   // Log coordinates only once on mount
   useEffect(() => {
-    console.log('Pickup Coordinates:', pickupCoordinates);
-    console.log('Dropoff Coordinates:', dropoffCoordinates);
-    console.log('Initial Region:', initialRegion);
-  }, []); // Empty dependency array - run only once
+    console.log('🔍 COORDINATE DEBUG:');
+    console.log('🔍 Pickup Coordinates:', pickupCoordinates);
+    console.log('🔍 Dropoff Coordinates:', dropoffCoordinates);
+    console.log('🔍 Map Ready:', mapReady);
+  }, [pickupCoordinates, dropoffCoordinates, mapReady]);
 
   // Fit map to markers only once when map is ready and coordinates are available
   const fitMapToCoordinates = useCallback(() => {
@@ -286,26 +287,46 @@ const DeliveryRequestScreen = ({ route, navigation }: {
         style={styles.map}
         initialRegion={initialRegion}
         onMapReady={() => {
-          console.log('🎯 Map is ready');
-          handleMapReady(); // ✅ actually call it
+          console.log('🗺️ DeliveryRequestScreen - Map ready');
+          // Fit to coordinates after map is ready
+          setTimeout(() => {
+            if (mapRef.current && pickupCoordinates && dropoffCoordinates) {
+              console.log('🗺️ Fitting to pickup/dropoff coordinates');
+              mapRef.current.fitToCoordinates(
+                [pickupCoordinates, dropoffCoordinates],
+                {
+                  edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
+                  animated: true,
+                }
+              );
+            }
+          }, 300);
         }}
-        onLayout={handleMapLayout}
+        onLayout={() => {
+          console.log('🖼️ DeliveryRequestScreen - Map layout completed');
+        }}
       >
-        {mapReady && (
-          <>
-            {/* Markers */}
-            <Marker coordinate={pickupCoordinates} title="Pickup" />
-            <Marker coordinate={dropoffCoordinates} title="Dropoff" />
+        {/* Markers */}
+        <Marker coordinate={pickupCoordinates} title="Pickup">
+          <View style={styles.markerContainer}>
+            <Ionicons name="locate" size={20} color="#FFFFFF" />
+          </View>
+        </Marker>
 
-            {/* Straight line if directions not available */}
-            <Polyline
-              coordinates={[pickupCoordinates, dropoffCoordinates]}
-              strokeWidth={3}
-              strokeColor="#0066cc"
-            />
-          </>
-        )}
+        <Marker coordinate={dropoffCoordinates} title="Dropoff">
+          <View style={[styles.markerContainer, { backgroundColor: '#ff6b6b' }]}>
+            <Ionicons name="location" size={20} color="#FFFFFF" />
+          </View>
+        </Marker>
+
+        {/* Polyline */}
+        <Polyline
+          coordinates={[pickupCoordinates, dropoffCoordinates]}
+          strokeWidth={3}
+          strokeColor="#0066cc"
+        />
       </MapView>
+
 
       {/* Countdown Timer */}
       <View style={styles.countdownContainer}>
@@ -403,7 +424,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
   },
   map: {
-    height: '40%',
+    flex: 1,
   },
   markerContainer: {
     width: 32,

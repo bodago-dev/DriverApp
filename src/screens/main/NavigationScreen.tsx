@@ -53,8 +53,10 @@ const NavigationScreen = ({ route, navigation }) => {
   const watchId = useRef<number | null>(null);
   const mapRef = useRef<MapView>(null);
   const lastRouteFetchRef = useRef<number>(0);
-  const routeFetchCooldownRef = useRef<number>(30000);
+  const routeFetchCooldownRef = useRef<number>(30000); // 30 seconds cooldown
   const isMountedRef = useRef<boolean>(true);
+  const locationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const routeFetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize and cleanup
   useEffect(() => {
@@ -74,6 +76,14 @@ const NavigationScreen = ({ route, navigation }) => {
       if (watchId.current !== null) {
         Geolocation.clearWatch(watchId.current);
         watchId.current = null;
+      }
+
+      // Clear timeouts
+      if (locationUpdateTimeoutRef.current) {
+        clearTimeout(locationUpdateTimeoutRef.current);
+      }
+      if (routeFetchTimeoutRef.current) {
+        clearTimeout(routeFetchTimeoutRef.current);
       }
 
       // Clear any timeouts or intervals
@@ -184,7 +194,7 @@ const NavigationScreen = ({ route, navigation }) => {
     };
   }, [currentStep, pickupCoords, dropoffCoords]);
 
-  // Fetch route directions with cooldown
+  // Improved fetch route directions with better cooldown and error handling
   const fetchRouteDirections = useCallback(async (startLocation: any, endLocation: any, forceRefresh: boolean = false) => {
     if (!startLocation || !endLocation || !isMountedRef.current) {
       return null;
@@ -192,11 +202,18 @@ const NavigationScreen = ({ route, navigation }) => {
 
     const now = Date.now();
     if (!forceRefresh && now - lastRouteFetchRef.current < routeFetchCooldownRef.current) {
+      console.log('🔄 Route fetch skipped - in cooldown period');
       return null;
+    }
+
+    // Cancel pending route fetch
+    if (routeFetchTimeoutRef.current) {
+      clearTimeout(routeFetchTimeoutRef.current);
     }
 
     setIsFetchingRoute(true);
     try {
+      console.log('🔄 Fetching route directions...');
       const directions = await directionsService.getRouteDirections(startLocation, endLocation);
 
       if (directions && directions.points && directions.points.length > 0 && isMountedRef.current) {
@@ -216,12 +233,13 @@ const NavigationScreen = ({ route, navigation }) => {
 
         return directions;
       } else if (isMountedRef.current) {
+        console.log('⚠️ No route points found, using fallback');
         // Fallback to straight line
         setRouteCoordinates([startLocation, endLocation]);
         return null;
       }
     } catch (error) {
-      console.error('Error fetching directions:', error);
+      console.error('❌ Error fetching directions:', error);
       // Fallback to straight line only if component is still mounted
       if (isMountedRef.current) {
         setRouteCoordinates([startLocation, endLocation]);
@@ -274,7 +292,7 @@ const NavigationScreen = ({ route, navigation }) => {
     }
   };
 
-  // Start location tracking
+  // Improved location tracking with better cleanup
   const startLocationTracking = async (driverId: string) => {
     if (!isMountedRef.current) return false;
 
@@ -322,8 +340,13 @@ const NavigationScreen = ({ route, navigation }) => {
             setDriverHeading(position.coords.heading);
           }
 
-          // Update location with debounce
-          setTimeout(() => {
+          // Clear previous timeout
+          if (locationUpdateTimeoutRef.current) {
+            clearTimeout(locationUpdateTimeoutRef.current);
+          }
+
+          // Debounced location update
+          locationUpdateTimeoutRef.current = setTimeout(() => {
             if (!isMountedRef.current) return;
 
             setDriverLocation(newLocation);
@@ -358,6 +381,23 @@ const NavigationScreen = ({ route, navigation }) => {
       return false;
     }
   };
+
+  // Debug effect - throttled to avoid excessive logging
+  useEffect(() => {
+    const debugTimeout = setTimeout(() => {
+      if (isMountedRef.current) {
+        console.log('🔍 COORDINATE DEBUG:');
+        console.log('🔍 Pickup Coordinates:', pickupCoords);
+        console.log('🔍 Dropoff Coordinates:', dropoffCoords);
+        console.log('🔍 Driver Location:', driverLocation);
+        console.log('🔍 Route Coordinates count:', routeCoordinates.length);
+        console.log('🔍 Map Ready:', mapReady);
+        console.log('🔍 Current Step:', currentStep);
+      }
+    }, 1000);
+
+    return () => clearTimeout(debugTimeout);
+  }, [pickupCoords, dropoffCoords, driverLocation, routeCoordinates, mapReady, currentStep]);
 
   // Back handler
   useEffect(() => {
@@ -453,17 +493,34 @@ const NavigationScreen = ({ route, navigation }) => {
     initializeDelivery();
   }, [deliveryId]);
 
-  // Fetch route when step changes or coordinates are available
+  // Improved route fetching with proper dependencies and conditions
   useEffect(() => {
-    if (driverLocation && (pickupCoords || dropoffCoords) && isMountedRef.current) {
-      const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-        ? pickupCoords
-        : dropoffCoords;
-
-      if (destination) {
-        fetchRouteDirections(driverLocation, destination, true);
-      }
+    if (!driverLocation || !(pickupCoords || dropoffCoords) || !isMountedRef.current) {
+      return;
     }
+
+    const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup'
+      ? pickupCoords
+      : dropoffCoords;
+
+    if (destination) {
+      // Debounce route fetching to prevent multiple rapid calls
+      if (routeFetchTimeoutRef.current) {
+        clearTimeout(routeFetchTimeoutRef.current);
+      }
+
+      routeFetchTimeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          fetchRouteDirections(driverLocation, destination, true);
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (routeFetchTimeoutRef.current) {
+        clearTimeout(routeFetchTimeoutRef.current);
+      }
+    };
   }, [currentStep, driverLocation, pickupCoords, dropoffCoords, fetchRouteDirections]);
 
   // Update map region when location or step changes
@@ -667,45 +724,96 @@ const NavigationScreen = ({ route, navigation }) => {
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
-        style={{ flex: 1 }}
-        initialRegion={DEFAULT_REGION} // ✅ safe starting point
+        style={styles.map}
+        initialRegion={DEFAULT_REGION}
         showsUserLocation={true}
         showsMyLocationButton={true}
         showsCompass={true}
         onMapReady={() => {
-          console.log('🎯 Map is ready');
+          console.log('🗺️ Map fully ready');
           setMapReady(true);
 
-          // Once ready, fit map to driver + destination if available
-          if (driverLocation) {
-            const destination =
-              currentStep === 'accepted' || currentStep === 'arrived_pickup'
-                ? pickupCoords
-                : dropoffCoords;
+          // Fit to coordinates after a brief delay to ensure map is fully rendered
+          setTimeout(() => {
+            if (driverLocation && (pickupCoords || dropoffCoords)) {
+              const coordinatesToFit = [driverLocation];
+              if (pickupCoords) coordinatesToFit.push(pickupCoords);
+              if (dropoffCoords) coordinatesToFit.push(dropoffCoords);
 
-            if (destination && mapRef.current) {
-              mapRef.current.fitToCoordinates(
-                [driverLocation, destination],
-                {
+              if (coordinatesToFit.length > 1) {
+                console.log('🗺️ Fitting to coordinates:', coordinatesToFit);
+                mapRef.current?.fitToCoordinates(coordinatesToFit, {
                   edgePadding: { top: 100, right: 100, bottom: 200, left: 100 },
                   animated: true,
-                }
-              );
+                });
+              }
             }
-          }
+          }, 500);
+        }}
+        onLayout={() => {
+          console.log('🖼️ Map layout completed');
+          // Force a re-render of markers by updating state
+          setMapReady(prev => {
+            if (!prev) return true;
+            return prev;
+          });
         }}
       >
-        {/* Markers */}
-        {pickupCoords && <Marker coordinate={pickupCoords} title="Pickup" />}
-        {dropoffCoords && <Marker coordinate={dropoffCoords} title="Dropoff" />}
-        {driverLocation && <Marker coordinate={driverLocation} title="You" />}
+        {/* Always render markers - don't conditionally render based on mapReady */}
+        {pickupCoords && (
+          <Marker
+            coordinate={pickupCoords}
+            title="Pickup Location"
+            description={deliveryData?.pickupLocation?.address || 'Pickup'}
+          >
+            <View style={styles.markerContainer}>
+              <Ionicons name="locate" size={20} color="#FFFFFF" />
+            </View>
+          </Marker>
+        )}
 
-        {/* Route polyline */}
+        {dropoffCoords && (
+          <Marker
+            coordinate={dropoffCoords}
+            title="Dropoff Location"
+            description={deliveryData?.dropoffLocation?.address || 'Dropoff'}
+          >
+            <View style={[styles.markerContainer, { backgroundColor: '#ff6b6b' }]}>
+              <Ionicons name="location" size={20} color="#FFFFFF" />
+            </View>
+          </Marker>
+        )}
+
+        {driverLocation && (
+          <Marker
+            coordinate={driverLocation}
+            title="Your Location"
+          >
+            <View style={styles.driverMarker}>
+              <Ionicons name="navigate" size={16} color="#FFFFFF" />
+            </View>
+          </Marker>
+        )}
+
+        {/* Render polyline if we have valid coordinates */}
         {routeCoordinates.length > 1 && (
-          <Polyline coordinates={routeCoordinates} strokeWidth={4} strokeColor="#0066cc" />
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeWidth={4}
+            strokeColor="#0066cc"
+          />
+        )}
+
+        {/* Fallback straight line if no route but have pickup/dropoff */}
+        {!routeCoordinates.length && pickupCoords && dropoffCoords && (
+          <Polyline
+            coordinates={[pickupCoords, dropoffCoords]}
+            strokeWidth={3}
+            strokeColor="#999"
+            strokeDasharray={[5, 5]}
+          />
         )}
       </MapView>
-
 
       {/* Navigation Panel */}
       <View style={styles.navigationPanel}>
@@ -846,9 +954,10 @@ const NavigationScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
     </View>
-
   );
 };
+
+// ... styles remain the same ...
 
 const styles = StyleSheet.create({
   container: {
@@ -867,28 +976,28 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   map: {
-    height: '60%',
-    width: '100%'
+    flex: 1,
   },
   markerContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#0066cc',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
   },
   driverMarker: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0066cc',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#4caf50',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -949,24 +1058,24 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   instructionsContainer: {
-    backgroundColor: '#e6f2ff',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 12,
     marginBottom: 15,
-    borderLeftWidth: 4,
+    borderLeftWidth: 3,
     borderLeftColor: '#0066cc',
   },
   instructionsTitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#0066cc',
-    marginBottom: 4,
+    color: '#333',
+    marginBottom: 5,
   },
   instructionText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
     color: '#333',
-    marginBottom: 2,
+    marginBottom: 5,
   },
   instructionDetail: {
     fontSize: 12,
@@ -980,43 +1089,44 @@ const styles = StyleSheet.create({
   navControlButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f0f0f0',
     paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   navControlText: {
-    color: '#0066cc',
+    marginLeft: 5,
     fontSize: 14,
+    color: '#0066cc',
     fontWeight: '500',
-    marginLeft: 8,
   },
   addressContainer: {
     marginBottom: 15,
   },
   addressCard: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#eee',
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#0066cc',
   },
   addressLabel: {
     fontSize: 12,
     color: '#666',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   addressText: {
     fontSize: 14,
-    color: '#333',
     fontWeight: '500',
+    color: '#333',
   },
   deliveryInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 15,
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 12,
   },
   deliveryInfoItem: {
     alignItems: 'center',
@@ -1024,12 +1134,12 @@ const styles = StyleSheet.create({
   deliveryInfoLabel: {
     fontSize: 12,
     color: '#666',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   deliveryInfoValue: {
     fontSize: 14,
-    color: '#333',
     fontWeight: '500',
+    color: '#333',
   },
   contactContainer: {
     flexDirection: 'row',
@@ -1037,36 +1147,34 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   contactButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#e6f2ff',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    flex: 1,
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 12,
+    borderRadius: 10,
     marginHorizontal: 5,
   },
   contactButtonText: {
-    color: '#0066cc',
-    fontSize: 14,
-    fontWeight: '500',
     marginLeft: 8,
+    fontSize: 14,
+    color: '#0066cc',
+    fontWeight: '500',
   },
   cancelButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ff6b6b',
-    borderRadius: 8,
+    backgroundColor: '#ffebee',
     paddingVertical: 12,
+    borderRadius: 10,
     alignItems: 'center',
+    marginBottom: 10,
   },
   cancelButtonDisabled: {
     opacity: 0.5,
   },
   cancelButtonText: {
-    color: '#ff6b6b',
-    fontSize: 16,
+    fontSize: 14,
+    color: '#d32f2f',
     fontWeight: '500',
   },
   actionButton: {
@@ -1075,22 +1183,22 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     backgroundColor: '#0066cc',
-    borderRadius: 8,
     paddingVertical: 15,
+    borderRadius: 12,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 5,
   },
   actionButtonDisabled: {
-    opacity: 0.6,
+    backgroundColor: '#ccc',
   },
   actionButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    color: '#fff',
   },
 });
 

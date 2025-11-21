@@ -156,9 +156,9 @@ class AuthService {
           throw error;
         }
       } catch (error) {
-        if (__DEV__) {
-            console.error('Error verifying OTP:', error);
-          }
+//        if (__DEV__) {
+//            console.error('Error verifying OTP:', error);
+//          }
 
         // Enhanced error handling for OTP verification
         let errorMessage = 'An unexpected error occurred';
