@@ -77,6 +77,66 @@ class FirestoreService {
     }
   }
 
+  // Admin method to activate rider
+  async activateRiderProfile(riderId) {
+      try {
+          const updateData = {
+              verificationStatus: 'active',
+              activatedAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+          };
+
+          await updateDoc(doc(this.db, 'users', riderId), updateData);
+          return { success: true };
+      } catch (error) {
+          console.error('Error activating rider profile:', error);
+          return { success: false, error: error.message };
+      }
+  }
+
+  // Admin method to deactivate/suspend rider
+  async deactivateRiderProfile(riderId, reason = '') {
+      try {
+          const updateData = {
+              verificationStatus: 'suspended',
+              deactivatedAt: serverTimestamp(),
+              deactivationReason: reason,
+              updatedAt: serverTimestamp()
+          };
+
+          await updateDoc(doc(this.db, 'users', riderId), updateData);
+          return { success: true };
+      } catch (error) {
+          console.error('Error deactivating rider profile:', error);
+          return { success: false, error: error.message };
+      }
+  }
+
+  // Get riders by verification status (for admin panel)
+  async getRidersByStatus(status, limitCount = 50) {
+      try {
+          const q = query(
+              collection(this.db, 'users'),
+              where('role', '==', 'rider'),
+              where('verificationStatus', '==', status),
+              orderBy('createdAt', 'desc'),
+              limit(limitCount)
+          );
+
+          const querySnapshot = await getDocs(q);
+          const riders = [];
+
+          querySnapshot.forEach(doc => {
+              riders.push({ id: doc.id, ...doc.data() });
+          });
+
+          return { success: true, riders };
+      } catch (error) {
+          console.error('Error getting riders by status:', error);
+          return { success: false, error: error.message };
+      }
+  }
+
   // Delivery Request Management
   async createDeliveryRequest(requestData) {
     try {

@@ -156,9 +156,6 @@ class AuthService {
           throw error;
         }
       } catch (error) {
-//        if (__DEV__) {
-//            console.error('Error verifying OTP:', error);
-//          }
 
         // Enhanced error handling for OTP verification
         let errorMessage = 'An unexpected error occurred';
@@ -210,6 +207,11 @@ class AuthService {
                 phoneNumber: userData.phoneNumber || user.phoneNumber,
                 ...userData,
                 onboardingCompleted: false,
+                // Add verification status
+                verificationStatus: 'inactive', // inactive, active, suspended
+                activatedAt: null,
+                deactivatedAt: null,
+                deactivationReason: null,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             };

@@ -95,41 +95,71 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
     setDocuments(updatedDocuments);
   };
 
-  const handleSubmit = async () => {  // Added async here
-      // Check if all required documents are uploaded
-      const missingRequiredDocuments = documentTypes
-        .filter(doc => doc.required && !documents[doc.id])
-        .map(doc => doc.name);
+  const handleSubmit = async () => {
+    // Check if all required documents are uploaded
+    const missingRequiredDocuments = documentTypes
+      .filter(doc => doc.required && !documents[doc.id])
+      .map(doc => doc.name);
 
-      if (missingRequiredDocuments.length > 0) {
-        Alert.alert(
-          'Missing Documents',
-          `Please upload the following required documents:\n${missingRequiredDocuments.join('\n')}`,
-        );
-        return;
-      }
+    if (missingRequiredDocuments.length > 0) {
+      Alert.alert(
+        'Missing Documents',
+        `Please upload the following required documents:\n${missingRequiredDocuments.join('\n')}`,
+      );
+      return;
+    }
 
-      setIsLoading(true);
+    setIsLoading(true);
 
-      try {
-        // In a real app, you would:
-        // 1. Upload documents to storage
-        // 2. Update user profile with document references
-        // 3. Mark onboarding as complete
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
 
-        const auth = getAuth();
-        const user = auth.currentUser;
+      if (user) {
+        // Step 1: Update user profile with document references
+        const updateResult = await authService.updateUserProfile({
+          documents: documents,
+          verificationStatus: 'inactive', // Set as inactive until admin verification
+          documentsSubmittedAt: new Date().toISOString()
+        });
 
-        if (user) {
-          // This would be your actual document upload logic
-          await authService.completeOnboarding(user.uid);
+        if (!updateResult.success) {
+          Alert.alert('Error', updateResult.error || 'Failed to save documents');
+          return;
         }
-      } catch (error) {
-        Alert.alert('Error', 'Failed to complete onboarding');
-      } finally {
-        setIsLoading(false);
+
+        // Step 2: Mark onboarding as complete
+        const onboardingResult = await authService.completeOnboarding(user.uid);
+
+        if (onboardingResult.success) {
+          Alert.alert(
+            'Documents Submitted',
+            'Your documents have been submitted for verification. You will be notified once your account is activated. This usually takes 1-2 business days.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  // The navigation will be handled by the MainNavigator
+                  // since onboardingCompleted is now true
+                  // We can navigate to MainTabs directly
+                  navigation.navigate('MainTabs');
+                }
+              }
+            ]
+          );
+        } else {
+          Alert.alert('Error', onboardingResult.error || 'Failed to complete onboarding');
+        }
+      } else {
+        Alert.alert('Error', 'User not authenticated');
       }
-    };
+    } catch (error) {
+      console.error('Document submission error:', error);
+      Alert.alert('Error', 'Failed to submit documents. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView

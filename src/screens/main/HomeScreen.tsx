@@ -35,6 +35,7 @@ const HomeScreen = ({ navigation }) => {
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [activeDeliveries, setActiveDeliveries] = useState([]);
   const [driverVehicleType, setDriverVehicleType] = useState<string | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState('inactive');
 
   const unsubscribeRequestsRef = useRef<(() => void) | null>(null);
   const watchId = useRef<number | null>(null);
@@ -63,8 +64,32 @@ const HomeScreen = ({ navigation }) => {
       fetchDriverData();
       fetchActiveDeliveries();
       checkOnlineStatus();
+      checkVerificationStatus();
     }
   }, [driverId]);
+
+  const checkVerificationStatus = async () => {
+    try {
+      const profileResult = await firestoreService.getUserProfile(driverId!);
+      if (profileResult.success && profileResult.userProfile) {
+        const status = profileResult.userProfile.verificationStatus || 'inactive';
+        setVerificationStatus(status);
+
+        // If profile is inactive, force offline status
+        if (status !== 'active' && isOnline) {
+          setIsOnline(false);
+          stopLocationTracking();
+          if (unsubscribeRequestsRef.current) {
+            unsubscribeRequestsRef.current();
+            unsubscribeRequestsRef.current = null;
+          }
+          setNearbyRequests([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking verification status:', error);
+    }
+  };
 
   const fetchActiveDeliveries = async () => {
     try {
@@ -111,11 +136,12 @@ const HomeScreen = ({ navigation }) => {
   const fetchDriverData = async () => {
     setIsLoading(true);
     try {
-      // Fetch driver profile first to get vehicle type and rating
+      // Fetch driver profile first to get vehicle type, rating, and verification status
       const profileResult = await firestoreService.getUserProfile(driverId!);
       console.log('User profile result:', profileResult);
 
       let vehicleType = 'boda'; // Default fallback
+      let verificationStatus = 'inactive';
 
       if (profileResult.success && profileResult.userProfile) {
         // Set the vehicle type from profile
@@ -126,14 +152,19 @@ const HomeScreen = ({ navigation }) => {
         console.log('Vehicle type from profile:', vehicleType);
         setDriverVehicleType(vehicleType);
 
+        // Set verification status
+        verificationStatus = profileResult.userProfile.verificationStatus || 'inactive';
+        setVerificationStatus(verificationStatus);
+
         // Set rating from profile
         setStats(prev => ({
           ...prev,
           rating: profileResult.userProfile.rating || 0,
         }));
       } else {
-        // If no profile found, use default and optionally create profile
+        // If no profile found, use defaults
         setDriverVehicleType(vehicleType);
+        setVerificationStatus(verificationStatus);
         console.log('Using default vehicle type:', vehicleType);
       }
 
@@ -393,12 +424,25 @@ const HomeScreen = ({ navigation }) => {
     setRefreshing(true);
     fetchDriverData();
     fetchActiveDeliveries();
+    checkVerificationStatus();
     if (isOnline && driverLocation) {
       setupDeliverySubscription(driverLocation, driverVehicleType);
     }
   };
 
   const handleToggleOnline = async () => {
+    // Check verification status first
+    if (verificationStatus !== 'active') {
+      Alert.alert(
+        'Account Not Activated',
+        verificationStatus === 'suspended'
+          ? 'Your account has been suspended. Please contact support for assistance.'
+          : 'Your account is currently under verification. You will be able to go online once your documents are verified and account is activated. This usually takes 1-2 business days.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     if (isLocationLoading) return;
 
     // Ensure we have a vehicle type before going online
@@ -480,6 +524,19 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  const getVerificationStatusText = () => {
+    switch (verificationStatus) {
+      case 'active':
+        return 'Account Activated';
+      case 'inactive':
+        return 'Under Verification';
+      case 'suspended':
+        return 'Account Suspended';
+      default:
+        return 'Status Unknown';
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -504,6 +561,25 @@ const HomeScreen = ({ navigation }) => {
         </View>
       )}
 
+      {/* Verification Status Banner */}
+      {verificationStatus !== 'active' && (
+        <View style={[
+          styles.statusContainer,
+          verificationStatus === 'suspended' ? styles.suspendedBanner : styles.inactiveBanner
+        ]}>
+          <Ionicons
+            name={verificationStatus === 'suspended' ? "alert-circle" : "time-outline"}
+            size={20}
+            color="#fff"
+          />
+          <Text style={styles.verificationBannerText}>
+            {verificationStatus === 'suspended'
+              ? 'Your account has been suspended. Please contact support.'
+              : 'Your account is under verification. You will be notified once activated.'}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.statusContainer}>
         <View style={styles.statusContent}>
           <Text style={styles.statusText}>
@@ -512,16 +588,18 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.statusDescription}>
             {isOnline
               ? 'You are receiving delivery requests'
-              : 'Go online to receive delivery requests'}
+              : verificationStatus !== 'active'
+                ? getVerificationStatusText()
+                : 'Go online to receive delivery requests'}
           </Text>
         </View>
         <Switch
-          trackColor={{ false: '#ccc', true: '#4caf50' }}
+          trackColor={{ false: '#ccc', true: verificationStatus === 'active' ? '#4caf50' : '#ccc' }}
           thumbColor={isOnline ? '#fff' : '#f4f3f4'}
           ios_backgroundColor="#ccc"
           onValueChange={handleToggleOnline}
           value={isOnline}
-          disabled={isLocationLoading}
+          disabled={isLocationLoading || verificationStatus !== 'active'}
         />
       </View>
 
@@ -611,7 +689,11 @@ const HomeScreen = ({ navigation }) => {
 
       <View style={styles.requestsContainer}>
         <Text style={styles.sectionTitle}>
-          {isOnline ? 'Nearby Requests' : 'Go Online to See Requests'}
+          {isOnline
+            ? 'Nearby Requests'
+            : verificationStatus !== 'active'
+              ? getVerificationStatusText()
+              : 'Go Online to See Requests'}
         </Text>
 
         {isOnline && nearbyRequests.length === 0 && !isLoading && (
@@ -621,6 +703,18 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.emptyRequestsSubtext}>
               Pull down to refresh or wait for new requests
             </Text>
+          </View>
+        )}
+
+        {!isOnline && verificationStatus === 'active' && (
+          <View style={styles.goOnlinePrompt}>
+            <Ionicons name="wifi-outline" size={40} color="#ccc" />
+            <Text style={styles.goOnlinePromptText}>Go online to see delivery requests</Text>
+            <TouchableOpacity
+              style={styles.goOnlineButton}
+              onPress={handleToggleOnline}>
+              <Text style={styles.goOnlineButtonText}>Go Online</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -722,13 +816,43 @@ const styles = StyleSheet.create({
     color: '#fff',
     flex: 1,
   },
+  verificationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 15,
+    marginTop: 10,
+    marginBottom: 10,
+    borderRadius: 8,
+  },
+  inactiveBanner: {
+    backgroundColor: '#ff9800',
+  },
+  suspendedBanner: {
+    backgroundColor: '#f44336',
+  },
+  verificationBannerText: {
+    marginLeft: 8,
+    marginTop: 15,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+  },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#fff',
     padding: 15,
+    marginHorizontal: 15,
     marginBottom: 15,
+    marginTop: 40,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   statusContent: {
     flex: 1,
@@ -760,7 +884,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 10,
-    margin: 15,
+    marginHorizontal: 15,
+    marginBottom: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -855,7 +980,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 15,
-    margin: 15,
+    marginHorizontal: 15,
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -884,6 +1010,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     textAlign: 'center',
+  },
+  goOnlinePrompt: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderStyle: 'dashed',
+  },
+  goOnlinePromptText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#666',
+    marginTop: 15,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  goOnlineButton: {
+    backgroundColor: '#0066cc',
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  goOnlineButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   requestCard: {
     borderWidth: 1,
