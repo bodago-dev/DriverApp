@@ -10,14 +10,16 @@ import {
   Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import firestoreService from '../../services/FirestoreService';
 
 const DeliveryStatusScreen = ({ route, navigation }) => {
   const { deliveryId, request } = route.params;
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [deliveryCompleted, setDeliveryCompleted] = useState(false);
   const [photoTaken, setPhotoTaken] = useState(false);
   const [signatureCollected, setSignatureCollected] = useState(false);
+  const [cashPaymentReceived, setCashPaymentReceived] = useState(false);
 
   const handleTakePhoto = () => {
     // In a real app, this would open the camera
@@ -67,7 +69,15 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     );
   };
 
-  const handleCompleteDelivery = () => {
+  const handleCompleteDelivery = async () => {
+    if (request.paymentMethod === 'cash' && !cashPaymentReceived) {
+      Alert.alert(
+        'Payment Not Received',
+        'Please confirm that you have received the cash payment before completing the delivery.',
+      );
+      return;
+    }
+
     if (!photoTaken || !signatureCollected) {
       Alert.alert(
         'Incomplete Delivery',
@@ -77,30 +87,38 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     }
 
     setIsLoading(true);
-    
-    // Simulate API call to complete delivery
-    setTimeout(() => {
-      setIsLoading(false);
-      setDeliveryCompleted(true);
-      
-      // Show success message
-      Alert.alert(
-        'Delivery Completed',
-        'The delivery has been successfully completed!',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate back to home screen
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Home' }],
-              });
+
+    try {
+      const result = await firestoreService.completeDeliveryAndPayment(deliveryId, request.paymentMethod);
+
+      if (result.success) {
+        setDeliveryCompleted(true);
+        // Show success message
+        Alert.alert(
+          'Delivery Completed',
+          'The delivery has been successfully completed!',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Navigate back to home screen
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+              },
             },
-          },
-        ]
-      );
-    }, 2000);
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to complete delivery. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error completing delivery:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const formatPrice = (price) => {
@@ -130,7 +148,7 @@ const handleMessageCustomer = () => {
         <Text style={styles.title}>Delivery Status</Text>
         <Text style={styles.orderId}>Order #{deliveryId}</Text>
       </View>
-      
+
       <View style={styles.card}>
         <View style={styles.statusContainer}>
           <View style={styles.statusIconContainer}>
@@ -144,15 +162,15 @@ const handleMessageCustomer = () => {
           </View>
         </View>
       </View>
-      
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Delivery Location</Text>
         <Text style={styles.locationText}>{request.dropoffAddress}</Text>
       </View>
-      
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Delivery Checklist</Text>
-        
+
         <View style={styles.checklistItem}>
           <View style={styles.checklistIconContainer}>
             {photoTaken ? (
@@ -167,7 +185,7 @@ const handleMessageCustomer = () => {
               Take a photo of the package at the delivery location
             </Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.checklistButton,
               photoTaken && styles.checklistButtonCompleted
@@ -178,7 +196,7 @@ const handleMessageCustomer = () => {
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.checklistItem}>
           <View style={styles.checklistIconContainer}>
             {signatureCollected ? (
@@ -193,7 +211,7 @@ const handleMessageCustomer = () => {
               Ask the recipient to sign to confirm delivery
             </Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.checklistButton,
               signatureCollected && styles.checklistButtonCompleted
@@ -205,10 +223,32 @@ const handleMessageCustomer = () => {
           </TouchableOpacity>
         </View>
       </View>
-      
+
+      {request.paymentMethod === 'cash' && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Cash Payment</Text>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Amount to Collect</Text>
+            <Text style={styles.summaryValue}>{formatPrice(request.fare)}</Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.checklistButton,
+              cashPaymentReceived && styles.checklistButtonCompleted,
+              { marginTop: 10, alignSelf: 'center' }
+            ]}
+            onPress={() => setCashPaymentReceived(!cashPaymentReceived)}
+          >
+            <Text style={styles.checklistButtonText}>
+              {cashPaymentReceived ? 'Cash Received' : 'Confirm Cash Payment'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Delivery Summary</Text>
-        
+
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Package Size</Text>
           <Text style={styles.summaryValue}>
@@ -216,20 +256,20 @@ const handleMessageCustomer = () => {
              request.packageSize === 'medium' ? 'Medium' : 'Large'}
           </Text>
         </View>
-        
+
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Distance</Text>
           <Text style={styles.summaryValue}>{request.distance} km</Text>
         </View>
-        
+
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Delivery Fare</Text>
           <Text style={styles.summaryValue}>{formatPrice(request.fare)}</Text>
         </View>
-        
+
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Payment Method</Text>
-          <Text style={styles.summaryValue}>{request.paymentMethod}</Text>
+          <Text style={styles.summaryValue}>{request.paymentMethod === 'cash' ? 'Cash on Delivery' : request.paymentMethod}</Text>
         </View>
       </View>
       

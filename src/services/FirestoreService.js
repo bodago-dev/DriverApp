@@ -16,6 +16,8 @@ import {
   getDocs
 } from '@react-native-firebase/firestore';
 import { getAuth } from '@react-native-firebase/auth';
+import { arrayUnion } from '@react-native-firebase/firestore'; // Import arrayUnion if it's used elsewhere, but not strictly needed for the new function
+
 
 class FirestoreService {
   constructor() {
@@ -594,6 +596,67 @@ class FirestoreService {
       return { success: true };
     } catch (error) {
       console.error('Error updating payment status:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Payment Management
+  async getPaymentByDeliveryId(deliveryId) {
+    try {
+      const q = query(
+        collection(this.db, 'payments'),
+        where('deliveryId', '==', deliveryId),
+        limit(1)
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return { success: true, payment: { id: doc.id, ...doc.data() } };
+      } else {
+        return { success: false, error: 'Payment record not found for this delivery' };
+      }
+    } catch (error) {
+      console.error('Error getting payment by delivery ID:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async completeDeliveryAndPayment(deliveryId, paymentMethod) {
+    try {
+      const batch = writeBatch(this.db);
+
+      // 1. Update delivery status to 'delivered'
+      const deliveryRef = doc(this.db, 'deliveries', deliveryId);
+      batch.update(deliveryRef, {
+        status: 'delivered',
+        updatedAt: serverTimestamp(),
+        'timeline.delivered': serverTimestamp()
+      });
+
+      // 2. Update payment status to 'paid' if it's a cash payment
+      if (paymentMethod === 'cash') {
+        const paymentResult = await this.getPaymentByDeliveryId(deliveryId);
+        if (paymentResult.success) {
+          const paymentRef = doc(this.db, 'payments', paymentResult.payment.id);
+          batch.update(paymentRef, {
+            status: 'paid',
+            updatedAt: serverTimestamp(),
+            paymentDate: serverTimestamp()
+          });
+        } else {
+          // Log a warning, but don't fail the delivery completion if payment record is missing
+          console.warn(`Payment record not found for cash delivery ${deliveryId}. Delivery status will still be updated.`);
+        }
+      }
+      // For other payment methods (e.g., mpesa, airtelmoney), we assume the payment is handled
+      // and updated to 'paid' by a separate system/webhook before this point.
+
+      await batch.commit();
+      return { success: true };
+    } catch (error) {
+      console.error('Error completing delivery and payment:', error);
       return { success: false, error: error.message };
     }
   }
