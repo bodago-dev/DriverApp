@@ -568,9 +568,6 @@ const NavigationScreen = ({ route, navigation }) => {
         newStatus = 'arrived_pickup';
         break;
       case 'arrived_pickup':
-        newStatus = 'picked_up';
-        break;
-      case 'picked_up':
         newStatus = 'in_transit';
         break;
       case 'in_transit':
@@ -620,8 +617,7 @@ const NavigationScreen = ({ route, navigation }) => {
   const getActionButtonText = () => {
     switch (currentStep) {
       case 'accepted': return 'Arrived at Pickup';
-      case 'arrived_pickup': return 'Package Picked Up';
-      case 'picked_up': return 'Start Delivery';
+      case 'arrived_pickup': return 'Start Delivery';
       case 'in_transit': return 'Arrived at Dropoff';
       case 'arrived_dropoff': return 'Complete Delivery';
       case 'delivered': return 'Delivery Completed';
@@ -633,7 +629,6 @@ const NavigationScreen = ({ route, navigation }) => {
     switch (currentStep) {
       case 'accepted': return 'Navigating to Pickup';
       case 'arrived_pickup': return 'At Pickup Location';
-      case 'picked_up': return 'En Route to Dropoff';
       case 'in_transit': return 'En Route to Dropoff';
       case 'arrived_dropoff': return 'At Dropoff Location';
       case 'delivered': return 'Delivery Complete';
@@ -645,7 +640,6 @@ const NavigationScreen = ({ route, navigation }) => {
     switch (currentStep) {
       case 'accepted': return 'Follow the route to the pickup location';
       case 'arrived_pickup': return 'Collect the package from the sender';
-      case 'picked_up': return 'Proceed to the dropoff location';
       case 'in_transit': return 'Continue to the dropoff location';
       case 'arrived_dropoff': return 'Deliver the package to the recipient';
       case 'delivered': return 'Delivery successfully completed';

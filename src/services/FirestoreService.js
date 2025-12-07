@@ -277,6 +277,7 @@ class FirestoreService {
       batch.update(deliveryRef, {
         status,
         updatedAt: serverTimestamp(),
+        [`timeline.${status}`]: serverTimestamp(), // ADDED: Update the timeline field
         ...additionalData
       });
 

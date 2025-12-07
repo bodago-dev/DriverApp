@@ -8,7 +8,8 @@
      query,
      where,
      orderBy,
-     serverTimestamp
+     serverTimestamp,
+     arrayUnion
  } from '@react-native-firebase/firestore';
 
  class DeliveryService {
@@ -67,6 +68,7 @@
          await updateDoc(deliveryRef, {
              status: status,
              updatedAt: serverTimestamp(),
+             [`timeline.${status}`]: serverTimestamp(), // Add this line to update the timeline
              statusHistory: arrayUnion({
              status: status,
              timestamp: serverTimestamp(),
