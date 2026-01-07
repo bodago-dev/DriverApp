@@ -277,7 +277,7 @@ class FirestoreService {
       batch.update(deliveryRef, {
         status,
         updatedAt: serverTimestamp(),
-        [`timeline.${status}`]: serverTimestamp(), // ADDED: Update the timeline field
+        [`timeline.${status}`]: serverTimestamp(),
         ...additionalData
       });
 
@@ -306,7 +306,6 @@ class FirestoreService {
       'accepted': 'accepted',
       'driver_assigned': 'accepted',
       'arrived_pickup': 'in_progress',
-      'picked_up': 'in_progress',
       'in_transit': 'in_progress',
       'arrived_dropoff': 'in_progress',
       'delivered': 'completed',

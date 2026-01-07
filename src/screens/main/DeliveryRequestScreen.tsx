@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -19,6 +21,8 @@ import {
 } from '@react-native-firebase/firestore';
 import firestoreService from '../../services/FirestoreService';
 import authService from '../../services/AuthService';
+
+const { width, height } = Dimensions.get('window');
 
 type DeliveryRequest = {
   id: string;
@@ -115,59 +119,27 @@ const DeliveryRequestScreen = ({ route, navigation }: {
     [pickupCoordinates, dropoffCoordinates]
   );
 
-  // Log coordinates only once on mount
-  useEffect(() => {
-    console.log('🔍 COORDINATE DEBUG:');
-    console.log('🔍 Pickup Coordinates:', pickupCoordinates);
-    console.log('🔍 Dropoff Coordinates:', dropoffCoordinates);
-    console.log('🔍 Map Ready:', mapReady);
-  }, [pickupCoordinates, dropoffCoordinates, mapReady]);
-
   // Fit map to markers only once when map is ready and coordinates are available
   const fitMapToCoordinates = useCallback(() => {
-    if (mapRef.current && pickupCoordinates && dropoffCoordinates && mapReady) {
+    if (mapRef.current && pickupCoordinates && dropoffCoordinates) {
       console.log('Fitting to coordinates...');
       mapRef.current.fitToCoordinates([pickupCoordinates, dropoffCoordinates], {
         edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
         animated: true,
       });
     }
-  }, [pickupCoordinates, dropoffCoordinates, mapReady]);
+  }, [pickupCoordinates, dropoffCoordinates]);
 
-  // Handle map ready state
-  const handleMapReady = useCallback(() => {
-    console.log('Map ready');
-    setMapReady(true);
-    // Small delay to ensure map is fully ready before fitting
-    setTimeout(fitMapToCoordinates, 100);
-  }, [fitMapToCoordinates]);
-
-  // Handle map layout
-  const handleMapLayout = useCallback(() => {
-    console.log('Map layout completed');
-    setMapReady(true);
-    // Fit coordinates after layout
-    fitMapToCoordinates();
-  }, [fitMapToCoordinates]);
-
-  // Countdown timer for request expiration - optimized with useRef to prevent stale closures
+  // Countdown timer for request expiration
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-
     const countdownInterval = setInterval(() => {
       setCountdown(prevCountdown => {
         if (prevCountdown <= 1) {
           clearInterval(countdownInterval);
-          // Request expired
           Alert.alert(
             'Request Expired',
             'This delivery request has expired.',
-            [
-              {
-                text: 'OK',
-                onPress: () => navigation.goBack(),
-              },
-            ]
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
           );
           return 0;
         }
@@ -175,10 +147,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
       });
     }, 1000);
 
-    return () => {
-      clearInterval(countdownInterval);
-      if (timer) clearTimeout(timer);
-    };
+    return () => clearInterval(countdownInterval);
   }, [navigation]);
 
   const handleAccept = async () => {
@@ -233,7 +202,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
         throw new Error(updateDeliveryResult.error || 'Failed to update delivery status');
       }
 
-      // 4. Navigate to NavigationScreen with the correct delivery ID using replace
+      // 4. Navigate to NavigationScreen
       navigation.replace('Navigation', {
         deliveryId: deliveryId,
         request: {
@@ -261,15 +230,8 @@ const DeliveryRequestScreen = ({ route, navigation }: {
       'Decline Request',
       'Are you sure you want to decline this delivery request?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Decline',
-          style: 'destructive',
-          onPress: () => navigation.goBack(),
-        },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Decline', style: 'destructive', onPress: () => navigation.goBack() },
       ]
     );
   };
@@ -288,25 +250,10 @@ const DeliveryRequestScreen = ({ route, navigation }: {
         initialRegion={initialRegion}
         onMapReady={() => {
           console.log('🗺️ DeliveryRequestScreen - Map ready');
-          // Fit to coordinates after map is ready
-          setTimeout(() => {
-            if (mapRef.current && pickupCoordinates && dropoffCoordinates) {
-              console.log('🗺️ Fitting to pickup/dropoff coordinates');
-              mapRef.current.fitToCoordinates(
-                [pickupCoordinates, dropoffCoordinates],
-                {
-                  edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
-                  animated: true,
-                }
-              );
-            }
-          }, 300);
-        }}
-        onLayout={() => {
-          console.log('🖼️ DeliveryRequestScreen - Map layout completed');
+          setMapReady(true);
+          setTimeout(fitMapToCoordinates, 500);
         }}
       >
-        {/* Markers */}
         <Marker coordinate={pickupCoordinates} title="Pickup">
           <View style={styles.markerContainer}>
             <Ionicons name="locate" size={20} color="#FFFFFF" />
@@ -319,101 +266,96 @@ const DeliveryRequestScreen = ({ route, navigation }: {
           </View>
         </Marker>
 
-        {/* Polyline */}
         <Polyline
           coordinates={[pickupCoordinates, dropoffCoordinates]}
           strokeWidth={3}
           strokeColor="#0066cc"
+          lineDashPattern={[5, 5]}
         />
       </MapView>
 
-
-      {/* Countdown Timer */}
-      <View style={styles.countdownContainer}>
-        <Text style={styles.countdownText}>Request expires in: {countdown}s</Text>
-      </View>
-
-      {/* Request Details */}
-      <ScrollView style={styles.detailsContainer}>
-        <View style={styles.fareContainer}>
-          <Text style={styles.fareLabel}>Delivery Fare</Text>
-          <Text style={styles.fareValue}>{formatPrice(request.fareDetails?.total || request.fare)}</Text>
+      {/* Request Details Panel */}
+      <View style={styles.detailsPanel}>
+        <View style={styles.header}>
+          <Text style={styles.title}>New Delivery Request</Text>
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerText}>{countdown}s</Text>
+          </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Route</Text>
-          <View style={styles.routeInfo}>
-            <View style={styles.locationRow}>
-              <View style={styles.locationIcon}>
-                <Ionicons name="locate" size={16} color="#0066cc" />
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={styles.locationContainer}>
+            <View style={styles.locationItem}>
+              <View style={[styles.dot, { backgroundColor: '#0066cc' }]} />
+              <View style={styles.locationTextContainer}>
+                <Text style={styles.locationLabel}>Pickup</Text>
+                <Text style={styles.locationText} numberOfLines={2}>
+                  {request.pickupLocation?.address || request.pickupAddress}
+                </Text>
               </View>
-              <Text style={styles.locationText} numberOfLines={1}>
-                {request.pickupLocation?.address || request.pickupAddress}
-              </Text>
             </View>
-            <View style={styles.routeDivider}>
-              <View style={styles.routeDividerLine} />
-            </View>
-            <View style={styles.locationRow}>
-              <View style={styles.locationIcon}>
-                <Ionicons name="location" size={16} color="#ff6b6b" />
+            <View style={styles.line} />
+            <View style={styles.locationItem}>
+              <View style={[styles.dot, { backgroundColor: '#ff6b6b' }]} />
+              <View style={styles.locationTextContainer}>
+                <Text style={styles.locationLabel}>Dropoff</Text>
+                <Text style={styles.locationText} numberOfLines={2}>
+                  {request.dropoffLocation?.address || request.dropoffAddress}
+                </Text>
               </View>
-              <Text style={styles.locationText} numberOfLines={1}>
-                {request.dropoffLocation?.address || request.dropoffAddress}
-              </Text>
             </View>
           </View>
 
-          <View style={styles.routeDetails}>
-            <View style={styles.routeDetailItem}>
-              <Ionicons name="navigate-outline" size={16} color="#666" />
-              <Text style={styles.routeDetailText}>
-                {request.distance} km
+          <View style={styles.infoGrid}>
+            <View style={styles.infoItem}>
+              <Ionicons name="resize" size={20} color="#666" />
+              <Text style={styles.infoLabel}>Size</Text>
+              <Text style={styles.infoValue}>
+                {(request.packageDetails?.size || request.packageSize).charAt(0).toUpperCase() + (request.packageDetails?.size || request.packageSize).slice(1)}
               </Text>
             </View>
-            <View style={styles.routeDetailItem}>
-              <Ionicons name="time-outline" size={16} color="#666" />
-              <Text style={styles.routeDetailText}>
-                {request.estimatedTime}
-              </Text>
+            <View style={styles.infoItem}>
+              <Ionicons name="map" size={20} color="#666" />
+              <Text style={styles.infoLabel}>Distance</Text>
+              <Text style={styles.infoValue}>{request.distance?.toFixed(1) || 'N/A'} km</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Ionicons name="cash" size={20} color="#666" />
+              <Text style={styles.infoLabel}>Fare</Text>
+              <Text style={styles.infoValue}>{formatPrice(request.fareDetails?.total || request.fare)}</Text>
             </View>
           </View>
-        </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Package Details</Text>
-          <View style={styles.packageDetails}>
-            <View style={styles.packageDetailItem}>
-              <Text style={styles.packageDetailLabel}>Size</Text>
-              <Text style={styles.packageDetailValue}>
-                {request.packageDetails?.size === 'small' ? 'Small' :
-                 request.packageDetails?.size === 'medium' ? 'Medium' : 'Large'}
-              </Text>
-            </View>
-            <View style={styles.packageDetailItem}>
-              <Text style={styles.packageDetailLabel}>Payment Method</Text>
-              <Text style={styles.packageDetailValue}>{request.paymentMethod || 'M-Pesa (Paid)'}</Text>
+          <View style={styles.paymentContainer}>
+            <Text style={styles.paymentLabel}>Payment Method</Text>
+            <View style={styles.paymentMethod}>
+              <Ionicons name="card" size={20} color="#0066cc" />
+              <Text style={styles.paymentText}>{request.paymentMethod || 'M-Pesa (Paid)'}</Text>
             </View>
           </View>
-        </View>
+        </ScrollView>
 
-        <View style={styles.actionsContainer}>
+        <View style={styles.actionButtons}>
           <TouchableOpacity
             style={styles.declineButton}
-            onPress={handleDecline}>
-            <Text style={styles.declineButtonText}>Decline</Text>
+            onPress={handleDecline}
+            disabled={isLoading}
+          >
+            <Text style={styles.declineText}>Decline</Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[styles.acceptButton, isLoading && styles.disabledButton]}
+            style={styles.acceptButton}
             onPress={handleAccept}
-            disabled={isLoading}>
-            <Text style={styles.acceptButtonText}>
-              {isLoading ? 'Accepting...' : 'Accept'}
-            </Text>
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.acceptText}>Accept Request</Text>
+            )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 };
@@ -421,175 +363,178 @@ const DeliveryRequestScreen = ({ route, navigation }: {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#FFFFFF',
   },
   map: {
     flex: 1,
   },
   markerContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#0066cc',
     justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: '#FFFFFF',
+    elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
-  countdownContainer: {
+  detailsPanel: {
     position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    zIndex: 1,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    padding: 20,
+    maxHeight: '55%',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
-  countdownText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  detailsContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    marginTop: -20,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  fareContainer: {
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
   },
-  fareLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
-  },
-  fareValue: {
-    fontSize: 24,
+  title: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#0066cc',
-  },
-  card: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
     color: '#333',
-    marginBottom: 12,
   },
-  routeInfo: {
-    marginBottom: 10,
+  timerContainer: {
+    backgroundColor: '#FFF0F0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#FFDADA',
   },
-  locationRow: {
+  timerText: {
+    color: '#FF4B4B',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  locationContainer: {
+    marginBottom: 20,
+  },
+  locationItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 5,
+    alignItems: 'flex-start',
   },
-  locationIcon: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginTop: 5,
+    marginRight: 15,
+  },
+  locationTextContainer: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 2,
   },
   locationText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#333',
-    flex: 1,
+    fontWeight: '500',
+    lineHeight: 20,
   },
-  routeDivider: {
-    paddingLeft: 12,
-    height: 15,
-  },
-  routeDividerLine: {
-    width: 1,
-    height: '100%',
-    backgroundColor: '#ddd',
-  },
-  routeDetails: {
-    flexDirection: 'row',
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  routeDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 20,
-  },
-  routeDetailText: {
-    fontSize: 14,
-    color: '#666',
+  line: {
+    width: 2,
+    height: 30,
+    backgroundColor: '#F0F0F0',
     marginLeft: 5,
+    marginVertical: 5,
   },
-  packageDetails: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  packageDetailItem: {
-    width: '50%',
-    marginBottom: 10,
-  },
-  packageDetailLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  packageDetailValue: {
-    fontSize: 14,
-    color: '#333',
-  },
-  actionsContainer: {
+  infoGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
-    marginBottom: 30,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 20,
+  },
+  infoItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 5,
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  paymentContainer: {
+    marginBottom: 25,
+  },
+  paymentLabel: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 10,
+  },
+  paymentMethod: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F7FF',
+    padding: 12,
+    borderRadius: 12,
+  },
+  paymentText: {
+    marginLeft: 10,
+    fontSize: 15,
+    color: '#0066cc',
+    fontWeight: '600',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   declineButton: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
+    flex: 0.35,
+    paddingVertical: 15,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingVertical: 12,
-    marginRight: 10,
+    borderColor: '#EEEEEE',
     alignItems: 'center',
   },
-  declineButtonText: {
+  declineText: {
     color: '#666',
     fontSize: 16,
     fontWeight: '600',
   },
   acceptButton: {
-    flex: 2,
+    flex: 0.6,
     backgroundColor: '#0066cc',
-    borderRadius: 8,
-    paddingVertical: 12,
+    paddingVertical: 15,
+    borderRadius: 12,
     alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#0066cc',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
-  disabledButton: {
-    backgroundColor: '#99ccff',
-  },
-  acceptButtonText: {
-    color: '#fff',
+  acceptText: {
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
 });
 
