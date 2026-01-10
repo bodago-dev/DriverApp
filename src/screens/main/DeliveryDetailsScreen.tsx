@@ -199,9 +199,21 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Total Amount</Text>
+          <Text style={styles.detailLabel}>Total Fare</Text>
           <Text style={styles.detailValue}>
             {formatPrice(delivery.fareDetails?.total || 0)}
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Service Fee (18%)</Text>
+          <Text style={[styles.detailValue, { color: '#ff6b6b' }]}>
+            -{formatPrice(delivery.fareDetails?.serviceFee || 0)}
+          </Text>
+        </View>
+        <View style={[styles.detailRow, { marginTop: 5, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 }]}>
+          <Text style={[styles.detailLabel, { fontWeight: 'bold', color: '#333' }]}>Your Earnings</Text>
+          <Text style={[styles.detailValue, { fontWeight: 'bold', color: '#4caf50', fontSize: 16 }]}>
+            {formatPrice((delivery.fareDetails?.total || 0) - (delivery.fareDetails?.serviceFee || 0))}
           </Text>
         </View>
       </View>

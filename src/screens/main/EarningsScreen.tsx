@@ -22,18 +22,24 @@ const EarningsScreen = ({ navigation }) => {
   const [earningsData, setEarningsData] = useState({
     today: {
       total: 0,
+      riderEarnings: 0,
+      serviceFees: 0,
       deliveries: 0,
       tips: 0,
       hours: 0,
     },
     week: {
       total: 0,
+      riderEarnings: 0,
+      serviceFees: 0,
       deliveries: 0,
       tips: 0,
       hours: 0,
     },
     month: {
       total: 0,
+      riderEarnings: 0,
+      serviceFees: 0,
       deliveries: 0,
       tips: 0,
       hours: 0,
@@ -62,16 +68,22 @@ const EarningsScreen = ({ navigation }) => {
         startOfMonth.setHours(0, 0, 0, 0);
 
         let todayTotal = 0;
+        let todayRiderEarnings = 0;
+        let todayServiceFees = 0;
         let todayDeliveriesCount = 0;
         let todayTips = 0;
         let todayHours = 0;
 
         let weekTotal = 0;
+        let weekRiderEarnings = 0;
+        let weekServiceFees = 0;
         let weekDeliveriesCount = 0;
         let weekTips = 0;
         let weekHours = 0;
 
         let monthTotal = 0;
+        let monthRiderEarnings = 0;
+        let monthServiceFees = 0;
         let monthDeliveriesCount = 0;
         let monthTips = 0;
         let monthHours = 0;
@@ -80,27 +92,35 @@ const EarningsScreen = ({ navigation }) => {
 
         sortedDeliveries.forEach(delivery => {
           const deliveryDate = delivery.createdAt?.toDate();
-          const fare = delivery.fareDetails?.total || 0;
+          const totalFare = delivery.fareDetails?.total || 0;
+          const serviceFee = delivery.fareDetails?.serviceFee || Math.round(totalFare * 0.1525); // Fallback: 18% of subtotal is ~15.25% of total
+          const riderEarnings = totalFare - serviceFee;
           const tip = delivery.fareDetails?.tip || 0;
 
           if (deliveryDate) {
             // Today
             if (deliveryDate.toDateString() === today.toDateString()) {
-              todayTotal += fare;
+              todayTotal += totalFare;
+              todayRiderEarnings += riderEarnings;
+              todayServiceFees += serviceFee;
               todayDeliveriesCount++;
               todayTips += tip;
             }
 
             // This Week (Past 7 days) - FIXED to match HomeScreen
             if (deliveryDate >= startOfWeek) {
-              weekTotal += fare;
+              weekTotal += totalFare;
+              weekRiderEarnings += riderEarnings;
+              weekServiceFees += serviceFee;
               weekDeliveriesCount++;
               weekTips += tip;
             }
 
             // This Month
             if (deliveryDate >= startOfMonth) {
-              monthTotal += fare;
+              monthTotal += totalFare;
+              monthRiderEarnings += riderEarnings;
+              monthServiceFees += serviceFee;
               monthDeliveriesCount++;
               monthTips += tip;
             }
@@ -108,9 +128,9 @@ const EarningsScreen = ({ navigation }) => {
         });
 
         setEarningsData({
-          today: { total: todayTotal, deliveries: todayDeliveriesCount, tips: todayTips, hours: todayHours },
-          week: { total: weekTotal, deliveries: weekDeliveriesCount, tips: weekTips, hours: weekHours },
-          month: { total: monthTotal, deliveries: monthDeliveriesCount, tips: monthTips, hours: monthHours },
+          today: { total: todayTotal, riderEarnings: todayRiderEarnings, serviceFees: todayServiceFees, deliveries: todayDeliveriesCount, tips: todayTips, hours: todayHours },
+          week: { total: weekTotal, riderEarnings: weekRiderEarnings, serviceFees: weekServiceFees, deliveries: weekDeliveriesCount, tips: weekTips, hours: weekHours },
+          month: { total: monthTotal, riderEarnings: monthRiderEarnings, serviceFees: monthServiceFees, deliveries: monthDeliveriesCount, tips: monthTips, hours: monthHours },
         });
         setRecentDeliveries(sortedDeliveries.slice(0, 10));
       } else {
@@ -185,7 +205,10 @@ const EarningsScreen = ({ navigation }) => {
 
       <View style={styles.deliveryItemHeader}>
         <Text style={styles.deliveryItemId}>{item.id}</Text>
-        <Text style={styles.deliveryItemAmount}>{formatPrice(item.fareDetails?.total || 0)}</Text>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={styles.deliveryItemAmount}>{formatPrice(item.fareDetails?.total - (item.fareDetails?.serviceFee || 0))}</Text>
+          <Text style={{ fontSize: 10, color: '#999' }}>Net Earnings</Text>
+        </View>
       </View>
 
       <View style={styles.deliveryItemDetails}>
@@ -243,9 +266,9 @@ const EarningsScreen = ({ navigation }) => {
 
       {/* Earnings Summary */}
       <View style={styles.earningsSummary}>
-        <Text style={styles.totalEarningsLabel}>Total Earnings</Text>
+        <Text style={styles.totalEarningsLabel}>Net Rider Earnings</Text>
         <Text style={styles.totalEarningsValue}>
-          {formatPrice(getCurrentPeriodData().total)}
+          {formatPrice(getCurrentPeriodData().riderEarnings)}
         </Text>
 
         <View style={styles.earningsStats}>
@@ -256,13 +279,13 @@ const EarningsScreen = ({ navigation }) => {
           </View>
           <View style={styles.statItem}>
             <Ionicons name="cash-outline" size={20} color="#4caf50" />
-            <Text style={styles.statValue}>{formatPrice(getCurrentPeriodData().tips)}</Text>
-            <Text style={styles.statLabel}>Tips</Text>
+            <Text style={styles.statValue}>{formatPrice(getCurrentPeriodData().total)}</Text>
+            <Text style={styles.statLabel}>Total Fare</Text>
           </View>
           <View style={styles.statItem}>
-            <Ionicons name="time-outline" size={20} color="#ff9800" />
-            <Text style={styles.statValue}>{getCurrentPeriodData().hours} hrs</Text>
-            <Text style={styles.statLabel}>Online Time</Text>
+            <Ionicons name="construct-outline" size={20} color="#ff6b6b" />
+            <Text style={styles.statValue}>{formatPrice(getCurrentPeriodData().serviceFees)}</Text>
+            <Text style={styles.statLabel}>Service Fee (18%)</Text>
           </View>
         </View>
       </View>
@@ -302,11 +325,11 @@ const EarningsScreen = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* Cashout Button */}
+      {/* Cashout Button
       <TouchableOpacity style={styles.cashoutButton}>
         <Ionicons name="wallet-outline" size={20} color="#fff" />
         <Text style={styles.cashoutButtonText}>Cash Out</Text>
-    </TouchableOpacity>
+    </TouchableOpacity> */}
     </View>
   );
 };
@@ -356,8 +379,8 @@ const styles = StyleSheet.create({
   totalEarningsValue: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
+    color: '#4caf50',
+    marginBottom: 25,
   },
   earningsStats: {
     flexDirection: 'row',
@@ -374,6 +397,13 @@ const styles = StyleSheet.create({
     marginTop: 5,
     marginBottom: 2,
   },
+  statValueServiceFee: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#ff6b6b',
+      marginTop: 5,
+      marginBottom: 2,
+    },
   statLabel: {
     fontSize: 12,
     color: '#666',
