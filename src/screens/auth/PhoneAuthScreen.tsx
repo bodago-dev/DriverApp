@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,14 +10,11 @@ import {
   Platform,
   ScrollView,
   Alert,
-  StyleProp,
-  ViewStyle,
-  TextStyle,
-  ImageStyle,
   TouchableWithoutFeedback,
   Keyboard,
 } from 'react-native';
-
+import NetInfo from '@react-native-community/netinfo';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import authService from '../../services/AuthService';
 
 // Define types for your navigation
@@ -37,6 +34,31 @@ type PhoneAuthScreenProps = {
 const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [networkError, setNetworkError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean | null>(true);
+  const [inputError, setInputError] = useState(false);
+
+  // Check network connection on component mount
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsConnected(state.isConnected);
+
+      // Clear network error when connection is restored
+      if (state.isConnected && networkError?.includes('internet')) {
+        setNetworkError(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [networkError]);
+
+  // Clear error when user starts typing
+  useEffect(() => {
+    if (networkError || inputError) {
+      setNetworkError(null);
+      setInputError(false);
+    }
+  }, [phoneNumber]);
 
   // Function to format phone number to international format
   const formatPhoneNumber = (input: string): string => {
@@ -90,17 +112,29 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
   };
 
   const handleSendOTP = async () => {
-
     // Dismiss keyboard first
     Keyboard.dismiss();
 
+    // Clear any existing errors
+    setNetworkError(null);
+    setInputError(false);
+
+    // Check internet connection first
+    if (!isConnected) {
+      setNetworkError('No internet connection. Please check your network and try again.');
+      return;
+    }
+
+    // Validate phone number
     if (!phoneNumber.trim()) {
-      Alert.alert('Error', 'Please enter your phone number');
+      setNetworkError('Please enter your phone number');
+      setInputError(true);
       return;
     }
 
     if (!validatePhoneNumber(phoneNumber)) {
-      Alert.alert('Error', 'Please enter a valid 9-digit Tanzanian phone number (e.g., 0712345678)');
+      setNetworkError('Please enter a valid 9-digit Tanzanian phone number (e.g., 0712345678)');
+      setInputError(true);
       return;
     }
 
@@ -111,103 +145,172 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
       const result = await authService.sendOTP(formattedPhoneNumber);
 
       if (result.success) {
+        // Clear any existing errors
+        setNetworkError(null);
+        setInputError(false);
+
         navigation.navigate('OtpVerification', {
           verificationId: result.confirmation.verificationId,
           phoneNumber: formattedPhoneNumber // Send raw digits for display
         });
       } else {
-        Alert.alert('Error', result.error || 'Failed to send OTP');
+        // Map Firebase error codes to user-friendly messages
+        let errorMessage = result.error || 'Failed to send OTP';
+
+        if (result.errorCode) {
+          switch (result.errorCode) {
+            case 'auth/network-request-failed':
+              errorMessage = 'Network error. Please check your internet connection and try again.';
+              setNetworkError(errorMessage);
+              break;
+            case 'auth/too-many-requests':
+              errorMessage = 'Too many attempts. Please try again later.';
+              setNetworkError(errorMessage);
+              break;
+            case 'auth/invalid-phone-number':
+              errorMessage = 'Invalid phone number format. Please enter a valid Tanzanian number.';
+              setNetworkError(errorMessage);
+              setInputError(true);
+              break;
+            case 'auth/quota-exceeded':
+              errorMessage = 'Service temporarily unavailable. Please try again in a few minutes.';
+              setNetworkError(errorMessage);
+              break;
+            default:
+              setNetworkError(errorMessage);
+          }
+        } else {
+          setNetworkError(errorMessage);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('OTP Error:', error);
-      Alert.alert('Error', 'Failed to send OTP. Please try again.');
+
+      // Handle network-related errors
+      if (error.message?.includes('network') || error.message?.includes('Network')) {
+        setNetworkError('Network error. Please check your internet connection and try again.');
+      } else if (error.code === 'auth/network-request-failed') {
+        setNetworkError('Network error. Please check your internet connection and try again.');
+      } else {
+        setNetworkError('Failed to send OTP. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-  <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container as StyleProp<ViewStyle>}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('../../assets/splash_logo.png')}
-            style={styles.logo as StyleProp<ImageStyle>}
-            resizeMode="contain"
-          />
-        </View>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Network Error Banner */}
+          {networkError && (
+            <View style={styles.errorBanner}>
+              <View style={styles.errorContent}>
+                <Ionicons name="warning-outline" size={20} color="#fff" />
+                <Text style={styles.errorText} numberOfLines={2}>{networkError}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setNetworkError(null)}
+                style={styles.closeErrorButton}
+              >
+                <Ionicons name="close" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          )}
 
-        <Text style={styles.title as StyleProp<TextStyle>}>Rider Login</Text>
-        <Text style={styles.subtitle as StyleProp<TextStyle>}>
-          Join our delivery network and start earning
-        </Text>
-
-        <View style={styles.inputContainer as StyleProp<ViewStyle>}>
-          <View style={styles.phoneInputContainer as StyleProp<ViewStyle>}>
-            <Text style={styles.countryCode as StyleProp<TextStyle>}>+255</Text>
-            <TextInput
-              style={styles.input as StyleProp<TextStyle>}
-              placeholder="712345678"
-              keyboardType="phone-pad"
-              value={phoneNumber}
-              onChangeText={handlePhoneNumberChange}
-              maxLength={10} // Allow for 0712345678 format
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../../assets/splash_logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
             />
           </View>
-          <Text style={styles.helperText as StyleProp<TextStyle>}>
-            Enter your 9-digit phone number (e.g., 712345678 or 0712345678)
+
+          <Text style={styles.title}>Rider Login</Text>
+          <Text style={styles.subtitle}>
+            Join our delivery network and start earning
           </Text>
-        </View>
 
-        <TouchableOpacity
-          style={[
-            styles.button as StyleProp<ViewStyle>,
-            isLoading && (styles.buttonDisabled as StyleProp<ViewStyle>)
-          ]}
-          onPress={handleSendOTP}
-          disabled={isLoading}>
-          <Text style={styles.buttonText as StyleProp<TextStyle>}>
-            {isLoading ? 'Sending...' : 'Continue'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.requirementsContainer}>
-          <Text style={styles.requirementsTitle}>Driver Requirements:</Text>
-          <Text style={styles.requirementItem}>• Profile Photo</Text>
-          <Text style={styles.requirementItem}>• Vehicle Photo</Text>
-          <Text style={styles.requirementItem}>• Valid Driving License: Class A</Text>
-          <Text style={styles.requirementItem}>• National ID/Voter ID/Passport/Birth Certificate</Text>
-          <Text style={styles.requirementItem}>• Vehicle Registration Card</Text>
-          <Text style={styles.requirementItem}>• Vehicle Insurance</Text>
-          <Text style={styles.requirementItem}>• LATRA Vehicle Licence</Text>
-          <Text style={styles.requirementItem}>• Police Clearance Certificate</Text>
-          <Text style={styles.requirementItem}>• Age 18 years or above</Text>
-        </View>
-
-        <View style={styles.languageSelector as StyleProp<ViewStyle>}>
-          <Text style={styles.languageText as StyleProp<TextStyle>}>Language / Lugha:</Text>
-          <View style={styles.languageOptions as StyleProp<ViewStyle>}>
-            <TouchableOpacity style={styles.languageOption as StyleProp<ViewStyle>}>
-              <Text style={[
-                styles.languageOptionText as StyleProp<TextStyle>,
-                styles.activeLanguage as StyleProp<TextStyle>
-              ]}>
-                Swahili
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.languageOption as StyleProp<ViewStyle>}>
-              <Text style={styles.languageOptionText as StyleProp<TextStyle>}>English</Text>
-            </TouchableOpacity>
+          <View style={styles.inputContainer}>
+            <View style={[
+              styles.phoneInputContainer,
+              inputError && styles.phoneInputContainerError
+            ]}>
+              <Text style={styles.countryCode}>+255</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="712345678"
+                keyboardType="phone-pad"
+                value={phoneNumber}
+                onChangeText={handlePhoneNumberChange}
+                maxLength={10} // Allow for 0712345678 format
+              />
+            </View>
+            <Text style={styles.helperText}>
+              Enter your 9-digit phone number (e.g., 712345678 or 0712345678)
+            </Text>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-</TouchableWithoutFeedback>
+
+          <TouchableOpacity
+            style={[
+              styles.button,
+              isLoading && styles.buttonDisabled
+            ]}
+            onPress={handleSendOTP}
+            disabled={isLoading || !isConnected}>
+            <Text style={styles.buttonText}>
+              {isLoading ? 'Sending...' : 'Continue'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Network Status Indicator */}
+          {!isConnected && !networkError && (
+            <View style={styles.networkStatus}>
+              <Ionicons name="wifi-outline" size={16} color="#ff9800" />
+              <Text style={styles.networkStatusText}>
+                You are offline. Please connect to the internet.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.requirementsContainer}>
+            <Text style={styles.requirementsTitle}>Driver Requirements:</Text>
+            <Text style={styles.requirementItem}>• Profile Photo</Text>
+            <Text style={styles.requirementItem}>• Vehicle Photo</Text>
+            <Text style={styles.requirementItem}>• Valid Driving License: Class A</Text>
+            <Text style={styles.requirementItem}>• National ID/Voter ID/Passport/Birth Certificate</Text>
+            <Text style={styles.requirementItem}>• Vehicle Registration Card</Text>
+            <Text style={styles.requirementItem}>• Vehicle Insurance</Text>
+            <Text style={styles.requirementItem}>• LATRA Vehicle Licence</Text>
+            <Text style={styles.requirementItem}>• Police Clearance Certificate</Text>
+            <Text style={styles.requirementItem}>• Age 18 years or above</Text>
+          </View>
+
+          <View style={styles.languageSelector}>
+            <Text style={styles.languageText}>Language / Lugha:</Text>
+            <View style={styles.languageOptions}>
+              <TouchableOpacity style={styles.languageOption}>
+                <Text style={[
+                  styles.languageOptionText,
+                  styles.activeLanguage
+                ]}>
+                  Swahili
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.languageOption}>
+                <Text style={styles.languageOptionText}>English</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -220,6 +323,31 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
     justifyContent: 'center',
+  },
+  // Error Banner Styles
+  errorBanner: {
+    backgroundColor: '#f44336',
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  errorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  errorText: {
+    color: '#fff',
+    fontSize: 14,
+    marginLeft: 10,
+    flex: 1,
+    fontWeight: '500',
+  },
+  closeErrorButton: {
+    padding: 4,
   },
   logoContainer: {
     alignItems: 'center',
@@ -254,6 +382,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  phoneInputContainerError: {
+    borderColor: '#f44336',
+    borderWidth: 2,
+    backgroundColor: '#ffebee',
+  },
   countryCode: {
     paddingHorizontal: 15,
     fontSize: 16,
@@ -286,10 +419,21 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     backgroundColor: '#99ccff',
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  // Network Status Styles
+  networkStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff3e0',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  networkStatusText: {
+    fontSize: 14,
+    color: '#ff9800',
+    marginLeft: 8,
+    fontWeight: '500',
   },
   requirementsContainer: {
     backgroundColor: '#f8f9fa',
