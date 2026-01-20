@@ -70,14 +70,42 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
   };
 
   const handleCompleteDelivery = async () => {
-    if (request.paymentMethod === 'cash' && !cashPaymentReceived) {
+    // For cash payments, we need to check if payment is received
+    if (request.paymentMethod === 'cash') {
+      // Show confirmation dialog for cash payment
       Alert.alert(
-        'Payment Not Received',
-        'Please confirm that you have received the cash payment before completing the delivery.',
+        'Confirm Cash Payment',
+        'Have you received the cash payment of ' + formatPrice(request.fare) + ' from the customer?',
+        [
+          {
+            text: 'No, Not Received',
+            style: 'cancel',
+            onPress: () => {
+              // User said payment not received - show warning
+              Alert.alert(
+                'Payment Not Received',
+                'Please collect the cash payment before completing the delivery.',
+              );
+              return;
+            }
+          },
+          {
+            text: 'Yes, Received',
+            onPress: async () => {
+              // Proceed with delivery completion including cash payment confirmation
+              await completeDeliveryProcess(true);
+            },
+          },
+        ]
       );
-      return;
+    } else {
+      // For non-cash payments, just complete the delivery
+      await completeDeliveryProcess(false);
     }
+  };
 
+  const completeDeliveryProcess = async (isCashPayment: boolean) => {
+    // Check required steps
     if (!photoTaken || !signatureCollected) {
       Alert.alert(
         'Incomplete Delivery',
@@ -89,14 +117,33 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     setIsLoading(true);
 
     try {
-      const result = await firestoreService.completeDeliveryAndPayment(deliveryId, request.paymentMethod);
+      // If it's a cash payment, we need to update both payment and delivery status
+      let result;
+      if (isCashPayment) {
+        // For cash payments, we need to complete delivery and mark payment as received
+        result = await firestoreService.completeDeliveryAndPayment(deliveryId, 'cash');
+      } else {
+        // For other payment methods, just complete delivery
+        const deliveryResult = await firestoreService.updateDeliveryStatus(
+          deliveryId,
+          'delivered',
+          { requestId: request?.requestId || deliveryId }
+        );
+        result = deliveryResult;
+      }
 
       if (result.success) {
         setDeliveryCompleted(true);
-        // Show success message
+        setCashPaymentReceived(isCashPayment);
+
+        // Show success message with appropriate text
+        const successMessage = isCashPayment
+          ? 'Cash payment received and delivery completed successfully!'
+          : 'Delivery has been successfully completed!';
+
         Alert.alert(
           'Delivery Completed',
-          'The delivery has been successfully completed!',
+          successMessage,
           [
             {
               text: 'OK',
@@ -125,23 +172,35 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     return `TZS ${price.toLocaleString()}`;
   };
 
-const handleCallCustomer = () => {
-  if (request?.phoneNumber) {
-    Linking.openURL(`tel:${request.phoneNumber}`);
-  } else {
-    Alert.alert('Error', 'Customer phone number not available.');
-  }
-};
+  const handleCallCustomer = () => {
+    if (request?.phoneNumber) {
+      Linking.openURL(`tel:${request.phoneNumber}`);
+    } else {
+      Alert.alert('Error', 'Customer phone number not available.');
+    }
+  };
 
-const handleMessageCustomer = () => {
-  if (request?.phoneNumber) {
-    Linking.openURL(`sms:${request.phoneNumber}`);
-  } else {
-    Alert.alert('Error', 'Customer phone number not available.');
-  }
-};
+  const handleMessageCustomer = () => {
+    if (request?.phoneNumber) {
+      Linking.openURL(`sms:${request.phoneNumber}`);
+    } else {
+      Alert.alert('Error', 'Customer phone number not available.');
+    }
+  };
 
   console.log('Request...', request);
+
+  // Determine button text based on payment method
+  const getCompleteButtonText = () => {
+    if (isLoading) return 'Processing...';
+
+    if (request.paymentMethod === 'cash') {
+      return 'Complete Delivery & Confirm Cash';
+    }
+
+    return 'Complete Delivery';
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -231,18 +290,12 @@ const handleMessageCustomer = () => {
             <Text style={styles.summaryLabel}>Amount to Collect</Text>
             <Text style={styles.summaryValue}>{formatPrice(request.fare)}</Text>
           </View>
-          <TouchableOpacity
-            style={[
-              styles.checklistButton,
-              cashPaymentReceived && styles.checklistButtonCompleted,
-              { marginTop: 10, alignSelf: 'center' }
-            ]}
-            onPress={() => setCashPaymentReceived(!cashPaymentReceived)}
-          >
-            <Text style={styles.checklistButtonText}>
-              {cashPaymentReceived ? 'Cash Received' : 'Confirm Cash Payment'}
+          <View style={styles.paymentNote}>
+            <Ionicons name="information-circle-outline" size={16} color="#ff9800" />
+            <Text style={styles.paymentNoteText}>
+              You'll confirm cash payment when completing delivery
             </Text>
-          </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -269,22 +322,25 @@ const handleMessageCustomer = () => {
 
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Payment Method</Text>
-          <Text style={styles.summaryValue}>{request.paymentMethod === 'cash' ? 'Cash on Delivery' : request.paymentMethod}</Text>
+          <Text style={styles.summaryValue}>
+            {request.paymentMethod === 'cash' ? 'Cash on Delivery' : request.paymentMethod}
+          </Text>
         </View>
       </View>
-      
+
       <TouchableOpacity
         style={[
           styles.completeButton,
-          (isLoading || deliveryCompleted) && styles.completeButtonDisabled
+          (isLoading || deliveryCompleted) && styles.completeButtonDisabled,
+          request.paymentMethod === 'cash' && styles.completeButtonCash
         ]}
         onPress={handleCompleteDelivery}
         disabled={isLoading || deliveryCompleted}>
         <Text style={styles.completeButtonText}>
-          {isLoading ? 'Completing...' : 'Complete Delivery'}
+          {getCompleteButtonText()}
         </Text>
       </TouchableOpacity>
-      
+
       <View style={styles.contactContainer}>
         <TouchableOpacity style={styles.contactButton} onPress={handleCallCustomer}>
           <Ionicons name="call" size={20} color="#0066cc" />
@@ -411,12 +467,31 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333',
   },
+  paymentNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#fff8e1',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#ff9800',
+  },
+  paymentNoteText: {
+    fontSize: 12,
+    color: '#ff9800',
+    marginLeft: 8,
+    flex: 1,
+  },
   completeButton: {
     backgroundColor: '#0066cc',
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
     margin: 15,
+  },
+  completeButtonCash: {
+    backgroundColor: '#4caf50', // Green for cash payments
   },
   completeButtonDisabled: {
     backgroundColor: '#99ccff',
