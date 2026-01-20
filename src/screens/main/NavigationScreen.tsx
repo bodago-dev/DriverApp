@@ -694,14 +694,14 @@ const NavigationScreen = ({ route, navigation }) => {
                 <>
                   <Text style={styles.addressLabel}>Pickup Location</Text>
                   <Text style={styles.addressText}>
-                    {deliveryData.pickupLocation?.address || deliveryRequest?.pickupAddress || 'N/A'}
+                    {deliveryData.pickupLocation?.name || deliveryData.pickupLocation?.address || deliveryRequest?.pickupAddress || 'N/A'}
                   </Text>
                 </>
               ) : (
                 <>
                   <Text style={styles.addressLabel}>Dropoff Location</Text>
                   <Text style={styles.addressText}>
-                    {deliveryData.dropoffLocation?.address || deliveryRequest?.dropoffAddress || 'N/A'}
+                    {deliveryData.dropoffLocation?.name || deliveryData.dropoffLocation?.address || deliveryRequest?.dropoffAddress || 'N/A'}
                   </Text>
                 </>
               )}

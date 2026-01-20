@@ -641,7 +641,7 @@ const HomeScreen = ({ navigation }) => {
                 <View style={styles.locationRow}>
                   <Ionicons name="locate" size={16} color="#0066cc" />
                   <Text style={styles.locationText} numberOfLines={1}>
-                    {delivery.pickupLocation?.address || 'N/A'}
+                    {delivery.pickupLocation?.name || delivery.pickupLocation?.address || 'N/A'}
                   </Text>
                 </View>
                 <View style={styles.routeDivider}>
@@ -650,7 +650,7 @@ const HomeScreen = ({ navigation }) => {
                 <View style={styles.locationRow}>
                   <Ionicons name="location" size={16} color="#ff6b6b" />
                   <Text style={styles.locationText} numberOfLines={1}>
-                    {delivery.dropoffLocation?.address || 'N/A'}
+                    {delivery.dropoffLocation?.name || delivery.dropoffLocation?.address || 'N/A'}
                   </Text>
                 </View>
               </View>
@@ -739,7 +739,7 @@ const HomeScreen = ({ navigation }) => {
                   <Ionicons name="locate" size={16} color="#0066cc" />
                 </View>
                 <Text style={styles.locationText} numberOfLines={1}>
-                  {request.pickupLocation?.address || 'N/A'}
+                  {request.pickupLocation?.name || request.pickupLocation?.address || 'N/A'}
                 </Text>
               </View>
               <View style={styles.routeDivider}>
@@ -750,7 +750,7 @@ const HomeScreen = ({ navigation }) => {
                   <Ionicons name="location" size={16} color="#ff6b6b" />
                 </View>
                 <Text style={styles.locationText} numberOfLines={1}>
-                  {request.dropoffLocation?.address || 'N/A'}
+                  {request.dropoffLocation?.name || request.dropoffLocation?.address || 'N/A'}
                 </Text>
               </View>
             </View>

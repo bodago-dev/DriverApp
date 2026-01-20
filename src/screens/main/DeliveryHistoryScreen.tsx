@@ -50,6 +50,7 @@ const DeliveryHistoryScreen = ({ navigation }) => {
             ['delivered', 'cancelled'].includes(delivery.status)
           );
         }
+        console.log('Delivery History..', fetchedDeliveries);
 
         // Sort by date (newest first)
         const sortedDeliveries = fetchedDeliveries.sort((a, b) => {
@@ -134,8 +135,8 @@ const DeliveryHistoryScreen = ({ navigation }) => {
         params: {
           deliveryId: item.id,
           request: {
-            pickupAddress: item.pickupLocation?.address || 'N/A',
-            dropoffAddress: item.dropoffLocation?.address || 'N/A',
+            pickupAddress: item.pickupLocation?.name || item.pickupLocation?.address || 'N/A',
+            dropoffAddress: item.dropoffLocation?.name || item.dropoffLocation?.address || 'N/A',
             packageSize: item.packageDetails?.size || 'medium',
             distance: item.distance || 'N/A',
             fare: item.fareDetails?.total || 0,
@@ -151,8 +152,8 @@ const DeliveryHistoryScreen = ({ navigation }) => {
         params: {
           deliveryId: item.id,
           request: {
-            pickupAddress: item.pickupLocation?.address || 'N/A',
-            dropoffAddress: item.dropoffLocation?.address || 'N/A',
+            pickupAddress: item.pickupLocation?.name || item.pickupLocation?.address || 'N/A',
+            dropoffAddress: item.dropoffLocation?.name || item.dropoffLocation?.address || 'N/A',
             packageSize: item.packageDetails?.size || 'medium',
             distance: item.distance || 'N/A',
             fare: item.fareDetails?.total || 0,
@@ -186,7 +187,7 @@ const DeliveryHistoryScreen = ({ navigation }) => {
         <View style={styles.locationRow}>
           <Ionicons name="locate" size={16} color="#0066cc" />
           <Text style={styles.locationText} numberOfLines={1}>
-            {item.pickupLocation?.address || 'N/A'}
+            {item.pickupLocation?.name || item.pickupLocation?.address || 'N/A'}
           </Text>
         </View>
         <View style={styles.routeDivider}>
@@ -195,7 +196,7 @@ const DeliveryHistoryScreen = ({ navigation }) => {
         <View style={styles.locationRow}>
           <Ionicons name="location" size={16} color="#ff6b6b" />
           <Text style={styles.locationText} numberOfLines={1}>
-            {item.dropoffLocation?.address || 'N/A'}
+            {item.dropoffLocation?.name || item.dropoffLocation?.address || 'N/A'}
           </Text>
         </View>
       </View>

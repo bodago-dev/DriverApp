@@ -118,7 +118,7 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
           <View style={styles.locationRow}>
             <Ionicons name="locate" size={16} color="#0066cc" />
             <Text style={styles.locationText}>
-              {delivery.pickupLocation?.address || 'Pickup location'}
+              {delivery.pickupLocation?.name || delivery.pickupLocation?.address || 'Pickup location'}
             </Text>
           </View>
           <View style={styles.routeDivider}>
@@ -127,7 +127,7 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
           <View style={styles.locationRow}>
             <Ionicons name="location" size={16} color="#ff6b6b" />
             <Text style={styles.locationText}>
-              {delivery.dropoffLocation?.address || 'Dropoff location'}
+              {delivery.dropoffLocation?.name || delivery.dropoffLocation?.address || 'Dropoff location'}
             </Text>
           </View>
         </View>

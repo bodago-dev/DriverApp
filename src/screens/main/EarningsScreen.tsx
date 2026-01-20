@@ -190,8 +190,8 @@ const EarningsScreen = ({ navigation }) => {
           params: {
             deliveryId: item.id,
             request: {
-              pickupAddress: item.pickupLocation?.address || 'N/A',
-              dropoffAddress: item.dropoffLocation?.address || 'N/A',
+              pickupAddress: item.pickupLocation?.name || item.pickupLocation?.address || 'N/A',
+              dropoffAddress: item.dropoffLocation?.name || item.dropoffLocation?.address || 'N/A',
               packageSize: item.packageDetails?.size || 'medium',
               distance: item.distance || 'N/A',
               fare: item.fareDetails?.total || 0,
@@ -217,7 +217,7 @@ const EarningsScreen = ({ navigation }) => {
             <Ionicons name="locate" size={14} color="#0066cc" />
           </View>
           <Text style={styles.locationText} numberOfLines={1}>
-            {item.pickupLocation?.address || 'N/A'}
+            {item.pickupLocation?.name || item.pickupLocation?.address || 'N/A'}
           </Text>
         </View>
         <View style={styles.routeDivider}>
@@ -228,7 +228,7 @@ const EarningsScreen = ({ navigation }) => {
             <Ionicons name="location" size={14} color="#ff6b6b" />
           </View>
           <Text style={styles.locationText} numberOfLines={1}>
-            {item.dropoffLocation?.address || 'N/A'}
+            {item.dropoffLocation?.name || item.dropoffLocation?.address || 'N/A'}
           </Text>
         </View>
       </View>

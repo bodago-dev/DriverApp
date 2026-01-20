@@ -290,7 +290,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
               <View style={styles.locationTextContainer}>
                 <Text style={styles.locationLabel}>Pickup</Text>
                 <Text style={styles.locationText} numberOfLines={2}>
-                  {request.pickupLocation?.address || request.pickupAddress}
+                  {request.pickupLocation?.name || request.pickupLocation?.address || request.pickupAddress}
                 </Text>
               </View>
             </View>
@@ -300,7 +300,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
               <View style={styles.locationTextContainer}>
                 <Text style={styles.locationLabel}>Dropoff</Text>
                 <Text style={styles.locationText} numberOfLines={2}>
-                  {request.dropoffLocation?.address || request.dropoffAddress}
+                  {request.dropoffLocation?.name || request.dropoffLocation?.address || request.dropoffAddress}
                 </Text>
               </View>
             </View>
