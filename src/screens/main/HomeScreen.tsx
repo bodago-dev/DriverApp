@@ -138,7 +138,7 @@ const HomeScreen = ({ navigation }) => {
     try {
       // Fetch driver profile first to get vehicle type, rating, and verification status
       const profileResult = await firestoreService.getUserProfile(driverId!);
-      console.log('User profile result:', profileResult);
+//       console.log('User profile result:', profileResult);
 
       let vehicleType = 'boda'; // Default fallback
       let verificationStatus = 'inactive';
@@ -149,7 +149,7 @@ const HomeScreen = ({ navigation }) => {
                      profileResult.userProfile.vehicleType ||
                      'boda';
 
-        console.log('Vehicle type from profile:', vehicleType);
+//         console.log('Vehicle type from profile:', vehicleType);
         setDriverVehicleType(vehicleType);
 
         // Set verification status
@@ -224,14 +224,14 @@ const HomeScreen = ({ navigation }) => {
       }
 
       const permissionStatus = await check(permission);
-      console.log('Current permission status:', permissionStatus);
+//       console.log('Current permission status:', permissionStatus);
 
       if (permissionStatus === RESULTS.GRANTED) {
         return true;
       }
 
       const requestResult = await request(permission);
-      console.log('Permission request result:', requestResult);
+//       console.log('Permission request result:', requestResult);
 
       if (requestResult === RESULTS.BLOCKED) {
         Alert.alert(
@@ -293,7 +293,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const setupDeliverySubscription = (location: {latitude: number, longitude: number}, vehicleType: string | null) => {
-    console.log('Setting up delivery subscription with location and vehicle filter:', location, vehicleType);
+//     console.log('Setting up delivery subscription with location and vehicle filter:', location, vehicleType);
 
     // Clear any existing subscription
     if (unsubscribeRequestsRef.current) {
@@ -327,7 +327,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const startLocationTracking = async () => {
-    console.log('Starting location tracking...');
+//     console.log('Starting location tracking...');
     try {
       setIsLocationLoading(true);
       setLocationError(null);
@@ -351,7 +351,7 @@ const HomeScreen = ({ navigation }) => {
       let initialLocation;
       try {
         initialLocation = await getCurrentPosition();
-        console.log('Initial location obtained:', initialLocation);
+//         console.log('Initial location obtained:', initialLocation);
 
         // Update state and wait for it to complete
         await new Promise<void>((resolve) => {

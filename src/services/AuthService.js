@@ -4,7 +4,7 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from '@
 
 class AuthService {
     constructor() {
-        console.log('AuthService CONSTRUCTOR: Initializing...');
+//        console.log('AuthService CONSTRUCTOR: Initializing...');
         this.user = null;
         this.userProfile = null;
         this.authStateListeners = [];
@@ -13,11 +13,11 @@ class AuthService {
             // Initialize Firebase services with modular API
             this.auth = getAuth();
             this.db = getFirestore();
-            console.log('AuthService CONSTRUCTOR: Firebase services obtained.');
+//            console.log('AuthService CONSTRUCTOR: Firebase services obtained.');
 
             // Listen for authentication state changes
             this.unsubscribeAuth = onAuthStateChanged(this.auth, this.onAuthStateChanged.bind(this));
-            console.log('AuthService CONSTRUCTOR: Firebase onAuthStateChanged listener attached.');
+//            console.log('AuthService CONSTRUCTOR: Firebase onAuthStateChanged listener attached.');
         } catch (error) {
             console.error('AuthService CONSTRUCTOR CRITICAL ERROR:', error);
         }
@@ -25,17 +25,17 @@ class AuthService {
 
     // Add authentication state listener
     addAuthStateListener(listener) {
-        console.log('AuthService.addAuthStateListener: Adding a new listener.');
+//        console.log('AuthService.addAuthStateListener: Adding a new listener.');
         if (typeof listener !== 'function') {
             console.error('AuthService.addAuthStateListener: Provided listener is not a function!');
             return () => {}; // Return a no-op function
         }
         this.authStateListeners.push(listener);
-        console.log('AuthService.addAuthStateListener: Listener added. Total listeners:', this.authStateListeners.length);
+//        console.log('AuthService.addAuthStateListener: Listener added. Total listeners:', this.authStateListeners.length);
 
         // Immediately notify the new listener
         try {
-            console.log('AuthService.addAuthStateListener: Immediately notifying new listener');
+//            console.log('AuthService.addAuthStateListener: Immediately notifying new listener');
             listener(this.user, this.userProfile);
         } catch (error) {
             console.error("AuthService.addAuthStateListener: Error notifying new listener:", error);
@@ -51,19 +51,19 @@ class AuthService {
     }
 
     async onAuthStateChanged(user) {
-        console.log('AuthService.onAuthStateChanged: FIRED with user:', user?.uid || null);
+//        console.log('AuthService.onAuthStateChanged: FIRED with user:', user?.uid || null);
         this.user = user;
         let loadedProfile = null;
 
         if (user) {
             try {
-                console.log('AuthService.onAuthStateChanged: Loading profile for UID:', user.uid);
+//                console.log('AuthService.onAuthStateChanged: Loading profile for UID:', user.uid);
                 const userDoc = await getDoc(doc(this.db, 'users', user.uid));
                 if (userDoc.exists()) {
                     loadedProfile = userDoc.data();
-                    console.log('AuthService.onAuthStateChanged: Profile FOUND:', loadedProfile);
+//                    console.log('AuthService.onAuthStateChanged: Profile FOUND:', loadedProfile);
                 } else {
-                    console.log('AuthService.onAuthStateChanged: Profile NOT found for UID:', user.uid);
+//                    console.log('AuthService.onAuthStateChanged: Profile NOT found for UID:', user.uid);
                 }
             } catch (error) {
                 console.error('AuthService.onAuthStateChanged: Error loading user profile:', error);
@@ -74,7 +74,7 @@ class AuthService {
         }
 
         this.userProfile = loadedProfile;
-        console.log('AuthService.onAuthStateChanged: Notifying listeners');
+//        console.log('AuthService.onAuthStateChanged: Notifying listeners');
         this.authStateListeners.forEach(listener => {
             try {
                 listener(this.user, this.userProfile);
@@ -88,7 +88,7 @@ class AuthService {
     async sendOTP(phoneNumber) {
         try {
             const formattedPhone = this.formatPhoneNumber(phoneNumber);
-            console.log('AuthService.sendOTP: Sending OTP to', formattedPhone);
+//            console.log('AuthService.sendOTP: Sending OTP to', formattedPhone);
             const confirmation = await signInWithPhoneNumber(this.auth, formattedPhone);
             return {
                 success: true,

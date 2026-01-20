@@ -182,10 +182,10 @@ const MainNavigator = () => {
       unsubscribe = authService.addAuthStateListener(async (fbUser, fbProfile) => {
         if (!isMounted) return;
 
-        console.log("Auth state update:", {
-          user: fbUser?.uid,
-          profileExists: !!fbProfile
-        });
+//         console.log("Auth state update:", {
+//           user: fbUser?.uid,
+//           profileExists: !!fbProfile
+//         });
 
         setUser(fbUser);
         setProfile(fbProfile);

@@ -98,7 +98,7 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
     return colorMap[status] || '#666';
   };
 
-  console.log('Delivery status:', delivery);
+//   console.log('Delivery status:', delivery);
 
   return (
     <ScrollView style={styles.container}>
@@ -154,9 +154,9 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
           </Text>
         </View>
         {delivery.packageDetails?.specialInstructions && (
-          <View style={styles.detailRow}>
+          <View style={styles.specialInstructionsContainer}>
             <Text style={styles.detailLabel}>Special Instructions</Text>
-            <Text style={styles.detailValue}>
+            <Text style={styles.specialInstructionsText}>
               {delivery.packageDetails.specialInstructions}
             </Text>
           </View>
@@ -368,6 +368,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 10,
+  },
+  specialInstructionsContainer: {
+      marginBottom: 10,
+  },
+  specialInstructionsText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+    marginTop: 5,
+    lineHeight: 20, // Better readability with line height
   },
 });
 

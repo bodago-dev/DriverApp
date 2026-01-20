@@ -50,7 +50,7 @@ const DeliveryHistoryScreen = ({ navigation }) => {
             ['delivered', 'cancelled'].includes(delivery.status)
           );
         }
-        console.log('Delivery History..', fetchedDeliveries);
+//         console.log('Delivery History..', fetchedDeliveries);
 
         // Sort by date (newest first)
         const sortedDeliveries = fetchedDeliveries.sort((a, b) => {

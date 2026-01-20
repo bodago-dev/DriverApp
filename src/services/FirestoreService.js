@@ -466,7 +466,7 @@ class FirestoreService {
       return () => {};
     }
 
-    console.log('Driver location and vehicle type:', driverLocation, vehicleType);
+//    console.log('Driver location and vehicle type:', driverLocation, vehicleType);
 
     return onSnapshot(
       query(
@@ -533,7 +533,7 @@ class FirestoreService {
           }
         });
         callback(requests);
-        console.log("Filtered requests by vehicle type:", requests);
+//        console.log("Filtered requests by vehicle type:", requests);
       },
       (error) => {
         console.error('Delivery request subscription error:', error);
