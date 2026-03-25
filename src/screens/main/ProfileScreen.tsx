@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getAuth, signOut } from '@react-native-firebase/auth';
 import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { resetRoot } from '../../services/NavigationService';
 
 
@@ -57,18 +59,6 @@ const handleLogout = async () => {
 
   const menuItems = [
     {
-      id: 'saved_locations',
-      title: 'Saved Locations',
-      icon: 'bookmark-outline',
-      onPress: () => navigation.navigate('SavedLocations'),
-    },
-    {
-      id: 'payment_methods',
-      title: 'Payment Methods',
-      icon: 'card-outline',
-      onPress: () => navigation.navigate('PaymentMethods'),
-    },
-    {
       id: 'notifications',
       title: 'Notifications',
       icon: 'notifications-outline',
@@ -90,7 +80,7 @@ const handleLogout = async () => {
       id: 'about',
       title: 'About',
       icon: 'information-circle-outline',
-      onPress: () => navigation.navigate('About'),
+      onPress: () => navigation.navigate('RiderAbout'),
     },
   ];
 
@@ -98,6 +88,25 @@ const handleLogout = async () => {
     if (user) {
       navigation.navigate('EditProfile', { user });
     }
+  };
+
+  const handleProfilePhotoPress = () => {
+    launchImageLibrary(
+      {
+        mediaType: 'photo',
+        includeBase64: false,
+        maxHeight: 300,
+        maxWidth: 300,
+      },
+      (response) => {
+        if (!response.didCancel && !response.errorCode) {
+          setUser((prevUser) => ({
+            ...prevUser,
+            profilePicture: { uri: response.assets[0].uri },
+          }));
+        }
+      }
+    );
   };
 
   if (loading) {
@@ -122,7 +131,10 @@ const handleLogout = async () => {
       <View style={styles.profileHeader}>
         <View style={styles.profileImageContainer}>
           <Image source={user.profilePicture} style={styles.profileImage} />
-          <TouchableOpacity style={styles.editImageButton}>
+          <TouchableOpacity
+            style={styles.editImageButton}
+            onPress={handleProfilePhotoPress}
+          >
             <Ionicons name="camera-outline" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -166,6 +178,7 @@ const handleLogout = async () => {
 
       {/* App Version */}
       <Text style={styles.versionText}>Version 1.0.0</Text>
+      <Text style={styles.copyrightText}>© 2026 BodaGo. All rights reserved.</Text>
     </ScrollView>
   );
 };
@@ -291,6 +304,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 10,
+    marginBottom: 5,
+  },
+  copyrightText: {
+    textAlign: 'center',
+    fontSize: 11,
+    color: '#bbb',
     marginBottom: 30,
   },
 });

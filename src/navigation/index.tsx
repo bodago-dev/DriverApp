@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { navigationRef } from '../services/NavigationService';
-import authService from '../services/AuthService';
+import authService from '../services/AuthService.js';
 
 // Splash Screen
 import SplashScreen from '../screens/SplashScreen';
@@ -29,6 +29,12 @@ import DeliveryHistoryScreen from '../screens/main/DeliveryHistoryScreen';
 import EarningsScreen from '../screens/main/EarningsScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import SupportScreen from '../screens/main/SupportScreen';
+import EditProfileScreen from '../screens/main/EditProfileScreen';
+import NotificationSettingsScreen from '../screens/main/NotificationSettingsScreen';
+import LanguageSettingsScreen from '../screens/main/LanguageSettingsScreen';
+import RiderAboutScreen from '../screens/main/RiderAboutScreen';
+import RiderFAQScreen from '../screens/main/RiderFAQScreen';
+import RiderContactSupportScreen from '../screens/main/RiderContactSupportScreen';
 
 // Stack navigators
 const AuthStack = createNativeStackNavigator();
@@ -102,7 +108,13 @@ const ProfileNavigator = () => {
   return (
     <ProfileStack.Navigator>
       <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: 'My Profile' }} />
+      <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
+      <ProfileStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} options={{ title: 'Notification Settings' }} />
+      <ProfileStack.Screen name="LanguageSettings" component={LanguageSettingsScreen} options={{ title: 'Language' }} />
       <ProfileStack.Screen name="Support" component={SupportScreen} options={{ title: 'Help & Support' }} />
+      <ProfileStack.Screen name="RiderFAQ" component={RiderFAQScreen} options={{ title: 'FAQ' }} />
+      <ProfileStack.Screen name="RiderContactSupport" component={RiderContactSupportScreen} options={{ title: 'Contact Support' }} />
+      <ProfileStack.Screen name="RiderAbout" component={RiderAboutScreen} options={{ title: 'About BodaGo' }} />
     </ProfileStack.Navigator>
   );
 };

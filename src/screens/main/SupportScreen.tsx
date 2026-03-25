@@ -4,41 +4,30 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const SupportScreen = () => {
+const SupportScreen = ({ navigation }) => {
   const supportOptions = [
     {
       id: 'faq',
       title: 'Frequently Asked Questions',
       icon: 'help-circle-outline',
-      onPress: () => {},
+      onPress: () => navigation.navigate('RiderFAQ'),
     },
     {
       id: 'contact',
       title: 'Contact Support',
       icon: 'call-outline',
-      onPress: () => {},
-    },
-    {
-      id: 'chat',
-      title: 'Live Chat',
-      icon: 'chatbubble-outline',
-      onPress: () => {},
-    },
-    {
-      id: 'email',
-      title: 'Email Support',
-      icon: 'mail-outline',
-      onPress: () => {},
+      onPress: () => navigation.navigate('RiderContactSupport'),
     },
   ];
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <Text style={styles.title}>How can we help you?</Text>
-
+      
       <View style={styles.optionsContainer}>
         {supportOptions.map((option) => (
           <TouchableOpacity
@@ -51,7 +40,7 @@ const SupportScreen = () => {
           </TouchableOpacity>
         ))}
       </View>
-
+      
       <View style={styles.emergencyContainer}>
         <Text style={styles.emergencyTitle}>Emergency Contact</Text>
         <Text style={styles.emergencyText}>
@@ -59,10 +48,10 @@ const SupportScreen = () => {
         </Text>
         <TouchableOpacity style={styles.emergencyButton}>
           <Ionicons name="call" size={20} color="#fff" />
-          <Text style={styles.emergencyButtonText}>+255 700 123 456</Text>
+          <Text style={styles.emergencyButtonText}>+255 712 863 555</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -70,7 +59,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-    padding: 20,
   },
   title: {
     fontSize: 24,
@@ -78,10 +66,14 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 20,
     textAlign: 'center',
+    marginTop: 20,
+    marginHorizontal: 20,
   },
   optionsContainer: {
     backgroundColor: '#fff',
     borderRadius: 10,
+    marginHorizontal: 15,
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -91,7 +83,8 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: 15,
+    paddingHorizontal: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
@@ -100,12 +93,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     marginLeft: 15,
+    fontWeight: '500',
   },
   emergencyContainer: {
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 20,
-    marginTop: 20,
+    marginHorizontal: 15,
+    marginBottom: 30,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -128,7 +123,7 @@ const styles = StyleSheet.create({
   emergencyButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f44336',
+    backgroundColor: '#ff6b6b',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,

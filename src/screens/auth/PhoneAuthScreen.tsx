@@ -282,8 +282,7 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
           <View style={styles.requirementsContainer}>
             <Text style={styles.requirementsTitle}>Driver Requirements:</Text>
             <Text style={styles.requirementItem}>• Profile Photo</Text>
-            <Text style={styles.requirementItem}>• Vehicle Photo</Text>
-            <Text style={styles.requirementItem}>• Valid Driving License: Class A</Text>
+            <Text style={styles.requirementItem}>• Valid Drivers License: Class A</Text>
             <Text style={styles.requirementItem}>• National ID/Voter ID/Passport/Birth Certificate</Text>
             <Text style={styles.requirementItem}>• Vehicle Registration Card</Text>
             <Text style={styles.requirementItem}>• Vehicle Insurance</Text>

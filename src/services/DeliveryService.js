@@ -14,7 +14,9 @@
 
  class DeliveryService {
 
- this.db = getFirestore();
+ constructor() {
+   this.db = getFirestore();
+ }
 
  // Create delivery request
  async createDeliveryRequest(requestData) {
@@ -139,4 +141,4 @@
      }
  }
 
- export default newDeliveryService();
+ export default new DeliveryService();
