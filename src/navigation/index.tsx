@@ -114,7 +114,7 @@ const ProfileNavigator = () => {
       <ProfileStack.Screen name="Support" component={SupportScreen} options={{ title: 'Help & Support' }} />
       <ProfileStack.Screen name="RiderFAQ" component={RiderFAQScreen} options={{ title: 'FAQ' }} />
       <ProfileStack.Screen name="RiderContactSupport" component={RiderContactSupportScreen} options={{ title: 'Contact Support' }} />
-      <ProfileStack.Screen name="RiderAbout" component={RiderAboutScreen} options={{ title: 'About BodaGo' }} />
+      <ProfileStack.Screen name="RiderAbout" component={RiderAboutScreen} options={{ title: 'About Us' }} />
     </ProfileStack.Navigator>
   );
 };

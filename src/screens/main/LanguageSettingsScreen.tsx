@@ -85,18 +85,18 @@ const LanguageSettingsScreen = ({ navigation }) => {
 
   const languages = [
     {
+      id: 'sw',
+      name: 'Kiswahili',
+      nativeName: 'Kiswahili',
+      flag: '🇹🇿',
+      description: 'Tumia app kwa Kiswahili',
+    },
+    {
       id: 'en',
       name: 'English',
       nativeName: 'English',
       flag: '🇬🇧',
       description: 'Use the app in English',
-    },
-    {
-      id: 'sw',
-      name: 'Swahili',
-      nativeName: 'Kiswahili',
-      flag: '🇹🇿',
-      description: 'Tumia app kwa Kiswahili',
     },
   ];
 

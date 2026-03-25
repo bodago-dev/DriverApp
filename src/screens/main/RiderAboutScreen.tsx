@@ -24,7 +24,7 @@ const RiderAboutScreen = () => {
   };
 
   const handleEmailSupport = () => {
-    Linking.openURL('mailto:support@bodago.co.tz').catch((err) =>
+    Linking.openURL('mailto:riders@bodago.co.tz').catch((err) =>
       console.error('Failed to email:', err)
     );
   };
@@ -139,7 +139,7 @@ const RiderAboutScreen = () => {
           <View style={styles.vehicleItem}>
             <Ionicons name="bicycle" size={24} color="#0066cc" />
             <View style={styles.vehicleContent}>
-              <Text style={styles.vehicleTitle}>Boda Boda</Text>
+              <Text style={styles.vehicleTitle}>Bodaboda</Text>
               <Text style={styles.vehicleDesc}>Best for small packages and quick deliveries</Text>
             </View>
           </View>
@@ -182,7 +182,7 @@ const RiderAboutScreen = () => {
           <Ionicons name="mail" size={20} color="#0066cc" />
           <View style={styles.contactContent}>
             <Text style={styles.contactLabel}>Email</Text>
-            <Text style={styles.contactValue}>support@bodago.co.tz</Text>
+            <Text style={styles.contactValue}>riders@bodago.co.tz</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
         </TouchableOpacity>

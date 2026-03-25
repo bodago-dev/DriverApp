@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -23,6 +24,12 @@ const SupportScreen = ({ navigation }) => {
       onPress: () => navigation.navigate('RiderContactSupport'),
     },
   ];
+
+const handleCallEmergency = () => {
+  Linking.openURL('tel:+255712863555').catch((err) =>
+    console.error('Failed to call:', err)
+  );
+};
 
   return (
     <ScrollView style={styles.container}>
@@ -44,9 +51,9 @@ const SupportScreen = ({ navigation }) => {
       <View style={styles.emergencyContainer}>
         <Text style={styles.emergencyTitle}>Emergency Contact</Text>
         <Text style={styles.emergencyText}>
-          For urgent delivery issues, call our 24/7 support line:
+          For urgent delivery issues, call our support line:
         </Text>
-        <TouchableOpacity style={styles.emergencyButton}>
+        <TouchableOpacity style={styles.emergencyButton} onPress={handleCallEmergency} >
           <Ionicons name="call" size={20} color="#fff" />
           <Text style={styles.emergencyButtonText}>+255 712 863 555</Text>
         </TouchableOpacity>
