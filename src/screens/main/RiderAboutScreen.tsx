@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const RiderAboutScreen = () => {
+const RiderAboutScreen = ({ navigation }) => {
   const handleOpenLink = (url) => {
     Linking.openURL(url).catch((err) =>
       console.error('Failed to open URL:', err)
@@ -42,7 +42,7 @@ const RiderAboutScreen = () => {
 
       {/* App Version */}
       <View style={styles.versionContainer}>
-        {/* <Text style={styles.appName}>BodaGo Rider</Text> */}
+     {/*<Text style={styles.appName}>BodaGo Rider</Text>*/}
         <Text style={styles.versionText}>Version 1.0.0</Text>
         <Text style={styles.tagline}>Earn Money with BodaGo</Text>
       </View>
@@ -203,11 +203,17 @@ const RiderAboutScreen = () => {
       {/* Legal Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Legal</Text>
-        <TouchableOpacity style={styles.linkItem}>
+        <TouchableOpacity
+          style={styles.linkItem}
+          onPress={() => navigation.navigate('TermsOfService')}
+        >
           <Text style={styles.linkText}>Terms of Service</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.linkItem}>
+        <TouchableOpacity
+          style={styles.linkItem}
+          onPress={() => navigation.navigate('PrivacyPolicy')}
+        >
           <Text style={styles.linkText}>Privacy Policy</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />
         </TouchableOpacity>
@@ -265,7 +271,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: '#f0ff0f0',
   },
   sectionTitle: {
     fontSize: 18,

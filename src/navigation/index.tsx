@@ -35,6 +35,8 @@ import LanguageSettingsScreen from '../screens/main/LanguageSettingsScreen';
 import RiderAboutScreen from '../screens/main/RiderAboutScreen';
 import RiderFAQScreen from '../screens/main/RiderFAQScreen';
 import RiderContactSupportScreen from '../screens/main/RiderContactSupportScreen';
+import TermsOfServiceScreen from '../screens/main/TermsOfServiceScreen';
+import PrivacyPolicyScreen from '../screens/main/PrivacyPolicyScreen';
 
 // Stack navigators
 const AuthStack = createNativeStackNavigator();
@@ -114,7 +116,9 @@ const ProfileNavigator = () => {
       <ProfileStack.Screen name="Support" component={SupportScreen} options={{ title: 'Help & Support' }} />
       <ProfileStack.Screen name="RiderFAQ" component={RiderFAQScreen} options={{ title: 'FAQ' }} />
       <ProfileStack.Screen name="RiderContactSupport" component={RiderContactSupportScreen} options={{ title: 'Contact Support' }} />
-      <ProfileStack.Screen name="RiderAbout" component={RiderAboutScreen} options={{ title: 'About Us' }} />
+      <ProfileStack.Screen name="RiderAbout" component={RiderAboutScreen} options={{ title: 'About BodaGo' }} />
+      <ProfileStack.Screen name="TermsOfService" component={TermsOfServiceScreen} options={{ title: 'Terms of Service' }} />
+      <ProfileStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: 'Privacy Policy' }} />
     </ProfileStack.Navigator>
   );
 };

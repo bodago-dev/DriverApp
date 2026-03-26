@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const RiderContactSupportScreen = () => {
+const RiderContactSupportScreen = ({ navigation }) => {
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -185,17 +185,26 @@ const RiderContactSupportScreen = () => {
       {/* Quick Links */}
       <View style={styles.quickLinksContainer}>
         <Text style={styles.quickLinksTitle}>Quick Links</Text>
-        <TouchableOpacity style={styles.quickLink}>
+        <TouchableOpacity
+            style={styles.quickLink}
+            onPress={() => navigation.navigate('RiderFAQ')}
+        >
           <Ionicons name="help-circle-outline" size={20} color="#0066cc" />
           <Text style={styles.quickLinkText}>View FAQ</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickLink}>
+        <TouchableOpacity
+            style={styles.quickLink}
+            onPress={() => navigation.navigate('TermsOfService')}
+        >
           <Ionicons name="document-text-outline" size={20} color="#0066cc" />
           <Text style={styles.quickLinkText}>Terms & Conditions</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickLink}>
+        <TouchableOpacity
+            style={styles.quickLink}
+            onPress={() => navigation.navigate('PrivacyPolicy')}
+        >
           <Ionicons name="shield-checkmark-outline" size={20} color="#0066cc" />
           <Text style={styles.quickLinkText}>Privacy Policy</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />

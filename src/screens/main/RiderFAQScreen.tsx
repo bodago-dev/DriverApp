@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const RiderFAQScreen = () => {
+const RiderFAQScreen = ( { navigation } ) => {
   const [expandedId, setExpandedId] = useState(null);
 
   const faqs = [
@@ -34,7 +34,7 @@ const RiderFAQScreen = () => {
       id: 4,
       question: 'What are the vehicle requirements?',
       answer:
-        'You need a valid vehicle (Boda Boda, Bajaji, or Guta) with proper registration and insurance. Your vehicle must be in good condition and pass our verification process. You will need to provide vehicle documents during onboarding.',
+        'You need a valid vehicle (Bodaboda, Bajaji, or Guta) with proper registration and insurance. Your vehicle must be in good condition and pass our verification process. You will need to provide vehicle documents during onboarding.',
     },
     {
       id: 5,
@@ -136,7 +136,10 @@ const RiderFAQScreen = () => {
         <Text style={styles.contactText}>
           Our support team is here to help. Contact us anytime.
         </Text>
-        <TouchableOpacity style={styles.contactButton}>
+        <TouchableOpacity
+            style={styles.contactButton}
+            onPress={() => navigation.navigate('RiderContactSupport')}
+            >
           <Ionicons name="chatbubble-outline" size={18} color="#fff" />
           <Text style={styles.contactButtonText}>Contact Support</Text>
         </TouchableOpacity>
