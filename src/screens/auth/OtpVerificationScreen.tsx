@@ -15,14 +15,16 @@ import {
 
 import { getAuth } from '@react-native-firebase/auth';
 import authService from '../../services/AuthService';
+import { useTranslation } from 'react-i18next';
 
 const OtpVerificationScreen = ({ route, navigation }) => {
+  const { t } = useTranslation();
   const { phoneNumber, verificationId } = route.params; // Now receiving verificationId instead of confirmation
   const [otp, setOtp] = useState(['', '', '', '', '', '']); // 6 digits now
   const [timer, setTimer] = useState(60);
   const [isResending, setIsResending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  
+
   const inputRefs = Array(6).fill(0).map(() => React.createRef());
 
   const [hasError, setHasError] = useState(false);
@@ -93,7 +95,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
       try {
         const result = await authService.sendOTP(phoneNumber);
         if (result.success) {
-          Alert.alert('OTP Sent', 'A new verification code has been sent to your phone.');
+          Alert.alert(t('common.success'), 'A new verification code has been sent to your phone.');
           setTimer(60);
           clearOtpAndRefocus(); // Clear existing OTP when resending
         } else {
@@ -111,13 +113,13 @@ const OtpVerificationScreen = ({ route, navigation }) => {
 
     // Validate OTP length
     if (otpCode.length !== 6) {
-      Alert.alert('Incomplete OTP', 'Please enter the complete 6-digit verification code.');
+      Alert.alert(t('common.warning'), 'Please enter the complete 6-digit verification code.');
       return;
     }
 
     // Validate that all digits are numbers
     if (!/^\d+$/.test(otpCode)) {
-      Alert.alert('Invalid Code', 'Please enter only numbers in the verification code.');
+      Alert.alert(t('common.error'), 'Please enter only numbers in the verification code.');
       return;
     }
 
@@ -164,9 +166,9 @@ const OtpVerificationScreen = ({ route, navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContainer}
                   keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Verification Code</Text>
+        <Text style={styles.title}>{t('auth.verification_title')}</Text>
         <Text style={styles.subtitle}>
-          Enter the 6-digit code sent to {phoneNumber}
+          {t('auth.verification_subtitle', { phone: phoneNumber })}
         </Text>
 
         <View style={styles.otpContainer}>
@@ -192,7 +194,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
 
         {hasError && (
           <Text style={styles.errorText}>
-            Invalid code. Please try again.
+            {t('auth.otp_failed_error')}
           </Text>
         )}
 
@@ -201,7 +203,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
           onPress={handleVerify}
           disabled={isVerifying}>
           <Text style={styles.buttonText}>
-            {isVerifying ? 'Verifying...' : 'Verify'}
+            {isVerifying ? t('common.loading') : t('common.confirm')}
           </Text>
         </TouchableOpacity>
 
@@ -218,10 +220,10 @@ const OtpVerificationScreen = ({ route, navigation }) => {
                 (timer > 0 || isResending) && styles.resendButtonDisabled
               ]}>
               {isResending
-                ? 'Sending...'
+                ? t('common.loading')
                 : timer > 0
-                  ? `Resend in ${timer}s`
-                  : 'Resend Code'}
+                  ? t('auth.resend_in', { timer })
+                  : t('auth.resend_code')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -230,7 +232,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
           style={styles.changeNumber}
           onPress={() => navigation.goBack()}>
           <Text style={styles.changeNumberText}>
-            Change Phone Number
+            {t('auth.change_phone')}
           </Text>
         </TouchableOpacity>
       </ScrollView>

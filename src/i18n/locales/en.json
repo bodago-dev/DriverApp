@@ -17,21 +17,27 @@
     "no_data": "No data found",
     "guest": "Guest",
     "online": "Online",
-    "offline": "Offline"
+    "offline": "Offline",
+    "warning": "Warning",
+    "close": "Close",
+    "submit": "Submit"
   },
   "auth": {
-    "welcome": "Welcome, Driver!",
+    "welcome": "Welcome!",
     "enter_phone_subtitle": "Enter your phone number to start earning",
     "phone_helper": "Enter 9 digits (712345678) or 10 digits starting with 0 (0712345678)",
     "enter_phone_error": "Please enter your phone number",
     "invalid_phone_error": "Please enter a valid phone number",
     "no_internet_error": "No internet connection. Please check your network.",
     "otp_failed_error": "Failed to send OTP. Please try again.",
-    "verification_title": "Verification",
+    "too_many_attempts_error": "Too many attempts. Please try again later.",
+    "invalid_format_error": "Invalid phone number format.",
+    "verification_title": "Verification Code",
     "verification_subtitle": "Enter the code sent to {{phone}}",
     "resend_code": "Resend Code",
+    "resend_in": "Resend in {{timer}}s",
     "verify_button": "Verify & Continue",
-    "invalid_format_error": "Invalid phone number format.",
+    "change_phone": "Change Phone Number",
     "requirements_title": "Driver Requirements:",
     "req_photo": "Profile Photo",
     "req_license": "Valid Drivers License: Class A",
@@ -42,8 +48,28 @@
     "req_police": "Police Clearance Certificate",
     "req_age": "Age 18 years or above"
   },
+  "onboarding": {
+    "profile_title": "Driver Profile",
+    "profile_subtitle": "Tell us about yourself",
+    "full_name": "Full Name",
+    "email": "Email Address",
+    "vehicle_title": "Vehicle Information",
+    "vehicle_subtitle": "Register your vehicle",
+    "vehicle_type": "Vehicle Type",
+    "vehicle_model": "Vehicle Model",
+    "plate_number": "Plate Number",
+    "docs_title": "Document Verification",
+    "docs_subtitle": "Upload required documents",
+    "upload_photo": "Upload Photo",
+    "take_photo": "Take Photo",
+    "choose_library": "Choose from Library",
+    "verification_submitted": "Verification Submitted",
+    "verification_submitted_msg": "We are reviewing your documents. This usually takes 24-48 hours."
+  },
   "home": {
-    "go_online": "Go Online",
+    "go_online_request_header": "Go online",
+    "go_online": "Go online to see delivery requests",
+    "go_online_button": "Go online",
     "go_offline": "Go Offline",
     "today_earnings": "Today's Earnings",
     "today_deliveries": "Today's Deliveries",
@@ -66,6 +92,8 @@
     "dropoff": "Dropoff"
   },
   "delivery": {
+    "title": "Deliveries",
+    "history": "History",
     "status_accepted": "Accepted",
     "status_arrived_pickup": "Arrived at Pickup",
     "status_picked_up": "Package Picked Up",
@@ -79,7 +107,17 @@
     "customer_details": "Customer Details",
     "confirm_pickup": "Confirm Pickup",
     "confirm_delivery": "Confirm Delivery",
-    "swipe_to_confirm": "Swipe to confirm"
+    "swipe_to_confirm": "Swipe to confirm",
+    "no_history": "No delivery history yet",
+    "details": "Delivery Details",
+    "status": "Delivery Status"
+  },
+  "earnings": {
+    "title": "Earnings",
+    "my_earnings": "My Earnings",
+    "total_balance": "Total Balance",
+    "withdraw": "Withdraw Funds",
+    "recent_transactions": "Recent Transactions"
   },
   "settings": {
     "title": "Settings",
@@ -88,14 +126,29 @@
     "choose_language": "Choose your preferred language",
     "swahili": "Kiswahili",
     "english": "English",
-    "language_changed": "Language changed to {{language}}"
+    "language_changed": "Language changed to {{language}}",
+    "notifications": "Notifications",
+    "notification_settings": "Notification Settings",
+    "push_notifications": "Push Notifications",
+    "order_updates": "Order Updates",
+    "promotions": "Promotions",
+    "language_info": "Changing language will update the app interface immediately."
   },
   "profile": {
     "title": "Profile",
+    "my_profile": "My Profile",
     "edit_profile": "Edit Profile",
     "vehicle_info": "Vehicle Information",
     "documents": "Documents",
     "earnings": "Earnings",
-    "logout": "Logout"
+    "logout": "Logout",
+    "help_support": "Help & Support",
+    "about": "About BodaGo",
+    "faq": "FAQ",
+    "contact_support": "Contact Support",
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "version": "Version",
+    "copyright": "© 2026 BodaGo. All rights reserved."
   }
 }

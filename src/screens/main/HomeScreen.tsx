@@ -17,8 +17,10 @@ import { PERMISSIONS, request, check, RESULTS } from 'react-native-permissions';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import firestoreService from '../../services/FirestoreService';
 import authService from '../../services/AuthService';
+import { useTranslation } from 'react-i18next';
 
 const HomeScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const [isOnline, setIsOnline] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLocationLoading, setIsLocationLoading] = useState(false);
@@ -575,7 +577,7 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.verificationBannerText}>
             {verificationStatus === 'suspended'
               ? 'Your account has been suspended. Please contact support.'
-              : 'Your account is under verification. You will be notified once activated.'}
+              : t('home.verification_pending_msg')}
           </Text>
         </View>
       )}
@@ -583,14 +585,14 @@ const HomeScreen = ({ navigation }) => {
       <View style={styles.statusContainer}>
         <View style={styles.statusContent}>
           <Text style={styles.statusText}>
-            {isOnline ? 'You are online' : 'You are offline'}
+            {isOnline ? t('common.online') : t('common.offline')}
           </Text>
           <Text style={styles.statusDescription}>
             {isOnline
-              ? 'You are receiving delivery requests'
+              ? t('home.searching_requests')
               : verificationStatus !== 'active'
                 ? getVerificationStatusText()
-                : 'Go online to receive delivery requests'}
+                : t('home.go_online')}
           </Text>
         </View>
         <Switch
@@ -662,18 +664,18 @@ const HomeScreen = ({ navigation }) => {
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{formatPrice(stats.todayEarnings)}</Text>
-          <Text style={styles.statLabel}>Today's Earnings</Text>
+          <Text style={styles.statLabel}>{t('home.today_earnings')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{stats.todayDeliveries}</Text>
-          <Text style={styles.statLabel}>Deliveries</Text>
+          <Text style={styles.statLabel}>{t('home.today_deliveries')}</Text>
         </View>
         <View style={styles.statCard}>
           <View style={styles.ratingContainer}>
             <Text style={styles.statValue}>{stats.rating}</Text>
             <Ionicons name="star" size={16} color="#ffc107" />
           </View>
-          <Text style={styles.statLabel}>Rating</Text>
+          <Text style={styles.statLabel}>{t('home.rating')}</Text>
         </View>
       </View>
 
@@ -681,7 +683,7 @@ const HomeScreen = ({ navigation }) => {
         style={styles.weeklySummary}
         onPress={() => navigation.navigate('EarningsTab')}>
         <View>
-          <Text style={styles.weeklySummaryLabel}>This Week's Earnings</Text>
+          <Text style={styles.weeklySummaryLabel}>{t('home.weekly_earnings')}</Text>
           <Text style={styles.weeklySummaryValue}>{formatPrice(stats.weeklyEarnings)}</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color="#666" />
@@ -690,16 +692,16 @@ const HomeScreen = ({ navigation }) => {
       <View style={styles.requestsContainer}>
         <Text style={styles.sectionTitle}>
           {isOnline
-            ? 'Nearby Requests'
+            ? t('home.nearby_requests')
             : verificationStatus !== 'active'
               ? getVerificationStatusText()
-              : 'Go Online to See Requests'}
+              : t('home.go_online_request_header')}
         </Text>
 
         {isOnline && nearbyRequests.length === 0 && !isLoading && (
           <View style={styles.emptyRequests}>
             <Ionicons name="search-outline" size={40} color="#ccc" />
-            <Text style={styles.emptyRequestsText}>No nearby requests</Text>
+            <Text style={styles.emptyRequestsText}>{t('home.no_nearby_requests')}</Text>
             <Text style={styles.emptyRequestsSubtext}>
               Pull down to refresh or wait for new requests
             </Text>
@@ -709,11 +711,11 @@ const HomeScreen = ({ navigation }) => {
         {!isOnline && verificationStatus === 'active' && (
           <View style={styles.goOnlinePrompt}>
             <Ionicons name="wifi-outline" size={40} color="#ccc" />
-            <Text style={styles.goOnlinePromptText}>Go online to see delivery requests</Text>
+            <Text style={styles.goOnlinePromptText}>{t('home.go_online')}</Text>
             <TouchableOpacity
               style={styles.goOnlineButton}
               onPress={handleToggleOnline}>
-              <Text style={styles.goOnlineButtonText}>Go Online</Text>
+              <Text style={styles.goOnlineButtonText}>{t('home.go_online_button')}</Text>
             </TouchableOpacity>
           </View>
         )}

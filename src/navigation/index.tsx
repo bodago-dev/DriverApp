@@ -8,6 +8,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { navigationRef } from '../services/NavigationService';
 import authService from '../services/AuthService.js';
+import { initLanguage } from '../i18n/persistence';
+import { useTranslation } from 'react-i18next';
 
 // Splash Screen
 import SplashScreen from '../screens/SplashScreen';
@@ -85,46 +87,50 @@ const OnboardingNavigator = () => {
 
 // Delivery flow navigator
 const DeliveryNavigator = () => {
+  const { t } = useTranslation();
   return (
     <DeliveryStack.Navigator>
       <DeliveryStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-      <DeliveryStack.Screen name="DeliveryRequest" component={DeliveryRequestScreen} options={{ title: 'New Request' }} />
-      <DeliveryStack.Screen name="Navigation" component={NavigationScreen} options={{ title: 'Navigation' }} />
-      <DeliveryStack.Screen name="DeliveryStatus" component={DeliveryStatusScreen} options={{ title: 'Delivery Status' }} />
-      <DeliveryStack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} options={{ title: 'Delivery Details' }} />
+      <DeliveryStack.Screen name="DeliveryRequest" component={DeliveryRequestScreen} options={{ title: t('home.new_delivery_request') }} />
+      <DeliveryStack.Screen name="Navigation" component={NavigationScreen} options={{ title: t('delivery.navigation') }} />
+      <DeliveryStack.Screen name="DeliveryStatus" component={DeliveryStatusScreen} options={{ title: t('delivery.status') }} />
+      <DeliveryStack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} options={{ title: t('delivery.details') }} />
     </DeliveryStack.Navigator>
   );
 };
 
 // Earnings navigator
 const EarningsNavigator = () => {
+  const { t } = useTranslation();
   return (
     <EarningsStack.Navigator>
-      <EarningsStack.Screen name="EarningsMain" component={EarningsScreen} options={{ title: 'My Earnings' }} />
+      <EarningsStack.Screen name="EarningsMain" component={EarningsScreen} options={{ title: t('earnings.my_earnings') }} />
     </EarningsStack.Navigator>
   );
 };
 
 // Profile navigator
 const ProfileNavigator = () => {
+  const { t } = useTranslation();
   return (
     <ProfileStack.Navigator>
-      <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: 'My Profile' }} />
-      <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
-      <ProfileStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} options={{ title: 'Notification Settings' }} />
-      <ProfileStack.Screen name="LanguageSettings" component={LanguageSettingsScreen} options={{ title: 'Language' }} />
-      <ProfileStack.Screen name="Support" component={SupportScreen} options={{ title: 'Help & Support' }} />
-      <ProfileStack.Screen name="RiderFAQ" component={RiderFAQScreen} options={{ title: 'FAQ' }} />
-      <ProfileStack.Screen name="RiderContactSupport" component={RiderContactSupportScreen} options={{ title: 'Contact Support' }} />
-      <ProfileStack.Screen name="RiderAbout" component={RiderAboutScreen} options={{ title: 'About BodaGo' }} />
-      <ProfileStack.Screen name="TermsOfService" component={TermsOfServiceScreen} options={{ title: 'Terms of Service' }} />
-      <ProfileStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: 'Privacy Policy' }} />
+      <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: t('profile.my_profile') }} />
+      <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: t('profile.edit_profile') }} />
+      <ProfileStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} options={{ title: t('settings.notification_settings') }} />
+      <ProfileStack.Screen name="LanguageSettings" component={LanguageSettingsScreen} options={{ title: t('settings.language') }} />
+      <ProfileStack.Screen name="Support" component={SupportScreen} options={{ title: t('profile.help_support') }} />
+      <ProfileStack.Screen name="RiderFAQ" component={RiderFAQScreen} options={{ title: t('profile.faq') }} />
+      <ProfileStack.Screen name="RiderContactSupport" component={RiderContactSupportScreen} options={{ title: t('profile.contact_support') }} />
+      <ProfileStack.Screen name="RiderAbout" component={RiderAboutScreen} options={{ title: t('profile.about') }} />
+      <ProfileStack.Screen name="TermsOfService" component={TermsOfServiceScreen} options={{ title: t('profile.terms') }} />
+      <ProfileStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: t('profile.privacy') }} />
     </ProfileStack.Navigator>
   );
 };
 
 // Tab navigator
 const TabNavigator = () => {
+  const { t } = useTranslation();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -152,14 +158,14 @@ const TabNavigator = () => {
         component={DeliveryNavigator}
         options={{
           headerShown: false,
-          title: 'Deliveries'
+          title: t('delivery.title')
         }}
       />
       <Tab.Screen
         name="History"
         component={DeliveryHistoryScreen}
         options={{
-          title: 'History'
+          title: t('delivery.history')
         }}
       />
       <Tab.Screen
@@ -167,7 +173,7 @@ const TabNavigator = () => {
         component={EarningsNavigator}
         options={{
           headerShown: false,
-          title: 'Earnings'
+          title: t('earnings.title')
         }}
       />
       <Tab.Screen
@@ -175,7 +181,7 @@ const TabNavigator = () => {
         component={ProfileNavigator}
         options={{
           headerShown: false,
-          title: 'Profile'
+          title: t('profile.title')
         }}
       />
     </Tab.Navigator>
@@ -195,6 +201,9 @@ const MainNavigator = () => {
 
     // Wait for BOTH auth state AND profile to stabilize
     const checkAuthAndProfile = async () => {
+      // Initialize language preference
+      await initLanguage();
+
       unsubscribe = authService.addAuthStateListener(async (fbUser, fbProfile) => {
         if (!isMounted) return;
 

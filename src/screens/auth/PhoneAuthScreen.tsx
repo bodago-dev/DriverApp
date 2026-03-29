@@ -204,11 +204,12 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
         style={styles.container}>
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           {/* Network Error Banner */}
           {networkError && (
@@ -296,7 +297,7 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
           <View style={styles.languageSelector}>
             <Text style={styles.languageText}>Language / Lugha:</Text>
             <View style={styles.languageOptions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.languageOption}
                 onPress={() => toggleLanguage('sw')}
               >
@@ -307,7 +308,7 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
                   Swahili
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.languageOption}
                 onPress={() => toggleLanguage('en')}
               >
@@ -334,7 +335,9 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     padding: 20,
-    justifyContent: 'center',
+    paddingBottom: 60,
+    // NOTE: Do NOT use justifyContent: 'center' here.
+    // It prevents scrolling and hides bottom content on small screens.
   },
   // Error Banner Styles
   errorBanner: {

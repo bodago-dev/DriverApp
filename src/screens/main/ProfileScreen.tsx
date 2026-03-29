@@ -59,7 +59,7 @@ const ProfileScreen = ({ navigation }) => {
   const menuItems = [
     {
       id: 'notifications',
-      title: 'Notifications',
+      title: t('settings.notifications'),
       icon: 'notifications-outline',
       onPress: () => navigation.navigate('NotificationSettings'),
     },
@@ -71,13 +71,13 @@ const ProfileScreen = ({ navigation }) => {
     },
     {
       id: 'help',
-      title: 'Help & Support',
+      title: t('profile.help_support'),
       icon: 'help-circle-outline',
       onPress: () => navigation.navigate('Support'),
     },
     {
       id: 'about',
-      title: 'About',
+      title: t('profile.about'),
       icon: 'information-circle-outline',
       onPress: () => navigation.navigate('RiderAbout'),
     },
@@ -177,8 +177,8 @@ const ProfileScreen = ({ navigation }) => {
       </TouchableOpacity>
 
       {/* App Version */}
-      <Text style={styles.versionText}>Version 1.0.0</Text>
-      <Text style={styles.copyrightText}>© 2026 BodaGo. All rights reserved.</Text>
+      <Text style={styles.versionText}>{t('profile.version')} 1.0.0</Text>
+      <Text style={styles.copyrightText}>{t('profile.copyright')}</Text>
     </ScrollView>
   );
 };

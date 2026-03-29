@@ -13,6 +13,7 @@ import { getAuth } from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authService from '../../services/AuthService.js';
 import { useTranslation } from 'react-i18next';
+import { saveLanguagePreference } from '../../i18n/persistence';
 
 const LanguageSettingsScreen = ({ navigation }) => {
   const { t, i18n } = useTranslation();
@@ -59,16 +60,13 @@ const LanguageSettingsScreen = ({ navigation }) => {
       }
 
       setIsLoading(true);
-      
+
       // Update i18n instance
       await i18n.changeLanguage(language);
       setSelectedLanguage(language);
 
       // Save to AsyncStorage
-      await AsyncStorage.setItem(
-        `language_preference_${currentUser.uid}`,
-        language
-      );
+      await saveLanguagePreference(language);
 
       // Also update in Firestore
       await authService.updateUserProfile({
