@@ -13,49 +13,48 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getAuth, signOut } from '@react-native-firebase/auth';
 import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { resetRoot } from '../../services/NavigationService';
-
+import { useTranslation } from 'react-i18next';
 
 const ProfileScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const auth = getAuth();
   const firestore = getFirestore();
 
-// Fetch user data from Firestore
-useEffect(() => {
-  const fetchUserData = async () => {
-    try {
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        const userDoc = await getDoc(doc(firestore, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          setUser({
-            ...userDoc.data(),
-            profilePicture: require('../../assets/driver-avatar-placeholder.jpg'),
-          });
+  // Fetch user data from Firestore
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const userDoc = await getDoc(doc(firestore, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            setUser({
+              ...userDoc.data(),
+              profilePicture: require('../../assets/driver-avatar-placeholder.jpg'),
+            });
+          }
         }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        Alert.alert(t('common.error'), 'Failed to load profile data');
+      } finally {
+        setLoading(false);
       }
+    };
+
+    fetchUserData();
+  }, [t]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
     } catch (error) {
-    console.error('Error fetching user data:', error);
-    Alert.alert('Error', 'Failed to load profile data');
-  } finally {
-    setLoading(false);
-  }
-};
-
-fetchUserData();
-}, []);
-
-const handleLogout = async () => {
-  try {
-    await signOut(auth);
-//     resetRoot('Auth');
-  } catch (error) {
-    console.error('Logout error:', error);
-    Alert.alert('Error', 'Failed to logout');
-  }
-};
+      console.error('Logout error:', error);
+      Alert.alert(t('common.error'), 'Failed to logout');
+    }
+  };
 
   const menuItems = [
     {
@@ -66,7 +65,7 @@ const handleLogout = async () => {
     },
     {
       id: 'language',
-      title: 'Language',
+      title: t('settings.language'),
       icon: 'language-outline',
       onPress: () => navigation.navigate('LanguageSettings'),
     },
@@ -112,7 +111,8 @@ const handleLogout = async () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Loading profile...</Text>
+        <ActivityIndicator size="large" color="#0066cc" />
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -120,7 +120,7 @@ const handleLogout = async () => {
   if (!user) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>No user data found</Text>
+        <Text>{t('common.no_data')}</Text>
       </View>
     );
   }
@@ -148,7 +148,7 @@ const handleLogout = async () => {
         <TouchableOpacity
           style={styles.editProfileButton}
           onPress={handleEditProfile}>
-          <Text style={styles.editProfileText}>Edit Profile</Text>
+          <Text style={styles.editProfileText}>{t('profile.edit_profile')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -173,7 +173,7 @@ const handleLogout = async () => {
         style={styles.logoutButton}
         onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={20} color="#f44336" />
-        <Text style={styles.logoutText}>Logout</Text>
+        <Text style={styles.logoutText}>{t('profile.logout')}</Text>
       </TouchableOpacity>
 
       {/* App Version */}
@@ -192,6 +192,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
   },
   profileHeader: {
     backgroundColor: '#fff',

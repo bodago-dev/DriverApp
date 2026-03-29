@@ -16,6 +16,7 @@ import {
 import NetInfo from '@react-native-community/netinfo';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import authService from '../../services/AuthService';
+import { useTranslation } from 'react-i18next';
 
 // Define types for your navigation
 type RootStackParamList = {
@@ -32,6 +33,7 @@ type PhoneAuthScreenProps = {
 };
 
 const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
+  const { t, i18n } = useTranslation();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [networkError, setNetworkError] = useState<string | null>(null);
@@ -121,19 +123,19 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
 
     // Check internet connection first
     if (!isConnected) {
-      setNetworkError('No internet connection. Please check your network and try again.');
+      setNetworkError(t('auth.no_internet_error'));
       return;
     }
 
     // Validate phone number
     if (!phoneNumber.trim()) {
-      setNetworkError('Please enter your phone number');
+      setNetworkError(t('auth.enter_phone_error'));
       setInputError(true);
       return;
     }
 
     if (!validatePhoneNumber(phoneNumber)) {
-      setNetworkError('Please enter a valid 9-digit Tanzanian phone number (e.g., 0712345678)');
+      setNetworkError(t('auth.invalid_phone_error'));
       setInputError(true);
       return;
     }
@@ -155,26 +157,22 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
         });
       } else {
         // Map Firebase error codes to user-friendly messages
-        let errorMessage = result.error || 'Failed to send OTP';
+        let errorMessage = result.error || t('auth.otp_failed_error');
 
         if (result.errorCode) {
           switch (result.errorCode) {
             case 'auth/network-request-failed':
-              errorMessage = 'Network error. Please check your internet connection and try again.';
+              errorMessage = t('auth.no_internet_error');
               setNetworkError(errorMessage);
               break;
             case 'auth/too-many-requests':
-              errorMessage = 'Too many attempts. Please try again later.';
+              errorMessage = t('auth.too_many_attempts_error');
               setNetworkError(errorMessage);
               break;
             case 'auth/invalid-phone-number':
-              errorMessage = 'Invalid phone number format. Please enter a valid Tanzanian number.';
+              errorMessage = t('auth.invalid_format_error');
               setNetworkError(errorMessage);
               setInputError(true);
-              break;
-            case 'auth/quota-exceeded':
-              errorMessage = 'Service temporarily unavailable. Please try again in a few minutes.';
-              setNetworkError(errorMessage);
               break;
             default:
               setNetworkError(errorMessage);
@@ -188,15 +186,19 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
 
       // Handle network-related errors
       if (error.message?.includes('network') || error.message?.includes('Network')) {
-        setNetworkError('Network error. Please check your internet connection and try again.');
+        setNetworkError(t('auth.no_internet_error'));
       } else if (error.code === 'auth/network-request-failed') {
-        setNetworkError('Network error. Please check your internet connection and try again.');
+        setNetworkError(t('auth.no_internet_error'));
       } else {
-        setNetworkError('Failed to send OTP. Please try again.');
+        setNetworkError(t('auth.otp_failed_error'));
       }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const toggleLanguage = (lang: string) => {
+    i18n.changeLanguage(lang);
   };
 
   return (
@@ -232,9 +234,9 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
             />
           </View>
 
-          <Text style={styles.title}>Rider Login</Text>
+          <Text style={styles.title}>{t('auth.welcome')}</Text>
           <Text style={styles.subtitle}>
-            Join our delivery network and start earning
+            {t('auth.enter_phone_subtitle')}
           </Text>
 
           <View style={styles.inputContainer}>
@@ -253,7 +255,7 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
               />
             </View>
             <Text style={styles.helperText}>
-              Enter your 9-digit phone number (e.g., 712345678 or 0712345678)
+              {t('auth.phone_helper')}
             </Text>
           </View>
 
@@ -265,7 +267,7 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
             onPress={handleSendOTP}
             disabled={isLoading || !isConnected}>
             <Text style={styles.buttonText}>
-              {isLoading ? 'Sending...' : 'Continue'}
+              {isLoading ? t('common.loading') : t('common.continue')}
             </Text>
           </TouchableOpacity>
 
@@ -274,36 +276,47 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
             <View style={styles.networkStatus}>
               <Ionicons name="wifi-outline" size={16} color="#ff9800" />
               <Text style={styles.networkStatusText}>
-                You are offline. Please connect to the internet.
+                {t('auth.no_internet_error')}
               </Text>
             </View>
           )}
 
           <View style={styles.requirementsContainer}>
-            <Text style={styles.requirementsTitle}>Driver Requirements:</Text>
-            <Text style={styles.requirementItem}>• Profile Photo</Text>
-            <Text style={styles.requirementItem}>• Valid Drivers License: Class A</Text>
-            <Text style={styles.requirementItem}>• National ID/Voter ID/Passport/Birth Certificate</Text>
-            <Text style={styles.requirementItem}>• Vehicle Registration Card</Text>
-            <Text style={styles.requirementItem}>• Vehicle Insurance</Text>
-            <Text style={styles.requirementItem}>• LATRA Vehicle Licence</Text>
-            <Text style={styles.requirementItem}>• Police Clearance Certificate</Text>
-            <Text style={styles.requirementItem}>• Age 18 years or above</Text>
+            <Text style={styles.requirementsTitle}>{t('auth.requirements_title') || 'Driver Requirements:'}</Text>
+            <Text style={styles.requirementItem}>• {t('auth.req_photo') || 'Profile Photo'}</Text>
+            <Text style={styles.requirementItem}>• {t('auth.req_license') || 'Valid Drivers License: Class A'}</Text>
+            <Text style={styles.requirementItem}>• {t('auth.req_id') || 'National ID/Voter ID/Passport/Birth Certificate'}</Text>
+            <Text style={styles.requirementItem}>• {t('auth.req_reg') || 'Vehicle Registration Card'}</Text>
+            <Text style={styles.requirementItem}>• {t('auth.req_insurance') || 'Vehicle Insurance'}</Text>
+            <Text style={styles.requirementItem}>• {t('auth.req_latra') || 'LATRA Vehicle Licence'}</Text>
+            <Text style={styles.requirementItem}>• {t('auth.req_police') || 'Police Clearance Certificate'}</Text>
+            <Text style={styles.requirementItem}>• {t('auth.req_age') || 'Age 18 years or above'}</Text>
           </View>
 
           <View style={styles.languageSelector}>
             <Text style={styles.languageText}>Language / Lugha:</Text>
             <View style={styles.languageOptions}>
-              <TouchableOpacity style={styles.languageOption}>
+              <TouchableOpacity 
+                style={styles.languageOption}
+                onPress={() => toggleLanguage('sw')}
+              >
                 <Text style={[
                   styles.languageOptionText,
-                  styles.activeLanguage
+                  i18n.language === 'sw' && styles.activeLanguage
                 ]}>
                   Swahili
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.languageOption}>
-                <Text style={styles.languageOptionText}>English</Text>
+              <TouchableOpacity 
+                style={styles.languageOption}
+                onPress={() => toggleLanguage('en')}
+              >
+                <Text style={[
+                  styles.languageOptionText,
+                  i18n.language === 'en' && styles.activeLanguage
+                ]}>
+                  English
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -325,7 +338,7 @@ const styles = StyleSheet.create({
   },
   // Error Banner Styles
   errorBanner: {
-    backgroundColor: '#f44336',
+    backgroundColor: '#ff6b6b',
     padding: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -350,7 +363,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 15,
   },
   logo: {
     width: 180,
@@ -382,9 +395,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   phoneInputContainerError: {
-    borderColor: '#f44336',
+    borderColor: '#ff6b6b',
     borderWidth: 2,
-    backgroundColor: '#ffebee',
+    backgroundColor: '#fff5f5',
   },
   countryCode: {
     paddingHorizontal: 15,
@@ -405,7 +418,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     marginLeft: 5,
-    marginBottom: 2,
   },
   button: {
     backgroundColor: '#0066cc',
@@ -418,7 +430,12 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     backgroundColor: '#99ccff',
   },
-  // Network Status Styles
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Network Status Indicator
   networkStatus: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -435,21 +452,21 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   requirementsContainer: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
     padding: 15,
+    borderRadius: 8,
     marginBottom: 20,
   },
   requirementsTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   requirementItem: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#666',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   languageSelector: {
     marginTop: 20,

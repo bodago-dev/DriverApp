@@ -53,7 +53,10 @@ const handleCallEmergency = () => {
         <Text style={styles.emergencyText}>
           For urgent delivery issues, call our support line:
         </Text>
-        <TouchableOpacity style={styles.emergencyButton} onPress={handleCallEmergency} >
+        <TouchableOpacity 
+          style={styles.emergencyButton} 
+          onPress={handleCallEmergency} 
+        >
           <Ionicons name="call" size={20} color="#fff" />
           <Text style={styles.emergencyButtonText}>+255 712 863 555</Text>
         </TouchableOpacity>

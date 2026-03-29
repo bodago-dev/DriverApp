@@ -12,11 +12,13 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getAuth } from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authService from '../../services/AuthService.js';
+import { useTranslation } from 'react-i18next';
 
 const LanguageSettingsScreen = ({ navigation }) => {
+  const { t, i18n } = useTranslation();
   const auth = getAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [selectedLanguage, setSelectedLanguage] = useState(i18n.language);
 
   useEffect(() => {
     loadLanguagePreference();
@@ -37,6 +39,9 @@ const LanguageSettingsScreen = ({ navigation }) => {
 
       if (savedLanguage) {
         setSelectedLanguage(savedLanguage);
+        if (i18n.language !== savedLanguage) {
+          i18n.changeLanguage(savedLanguage);
+        }
       }
     } catch (error) {
       console.error('Error loading language preference:', error);
@@ -49,10 +54,14 @@ const LanguageSettingsScreen = ({ navigation }) => {
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) {
-        Alert.alert('Error', 'User not authenticated');
+        Alert.alert(t('common.error'), 'User not authenticated');
         return;
       }
 
+      setIsLoading(true);
+      
+      // Update i18n instance
+      await i18n.changeLanguage(language);
       setSelectedLanguage(language);
 
       // Save to AsyncStorage
@@ -66,12 +75,19 @@ const LanguageSettingsScreen = ({ navigation }) => {
         languagePreference: language,
       });
 
-      Alert.alert('Success', `Language changed to ${language === 'en' ? 'English' : 'Swahili'}`);
+      Alert.alert(
+        t('common.success'), 
+        t('settings.language_changed', { 
+          language: language === 'en' ? t('settings.english') : t('settings.swahili') 
+        })
+      );
     } catch (error) {
       console.error('Error updating language preference:', error);
-      Alert.alert('Error', 'Failed to update language preference');
+      Alert.alert(t('common.error'), 'Failed to update language preference');
       // Revert the change
       loadLanguagePreference();
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -86,14 +102,14 @@ const LanguageSettingsScreen = ({ navigation }) => {
   const languages = [
     {
       id: 'sw',
-      name: 'Kiswahili',
+      name: t('settings.swahili'),
       nativeName: 'Kiswahili',
       flag: '🇹🇿',
       description: 'Tumia app kwa Kiswahili',
     },
     {
       id: 'en',
-      name: 'English',
+      name: t('settings.english'),
       nativeName: 'English',
       flag: '🇬🇧',
       description: 'Use the app in English',
@@ -102,9 +118,9 @@ const LanguageSettingsScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Language Settings</Text>
+      <Text style={styles.title}>{t('settings.language_settings')}</Text>
       <Text style={styles.subtitle}>
-        Choose your preferred language for the app
+        {t('settings.choose_language')}
       </Text>
 
       <View style={styles.languagesContainer}>
@@ -141,20 +157,9 @@ const LanguageSettingsScreen = ({ navigation }) => {
       <View style={styles.infoContainer}>
         <Ionicons name="information-circle-outline" size={20} color="#0066cc" />
         <Text style={styles.infoText}>
-          The app will be displayed in your selected language. Some content may
-          still appear in English if translations are not available.
+          {t('settings.language_info')}
         </Text>
       </View>
-
-      {/* <View style={styles.featureContainer}>
-        <Text style={styles.featureTitle}>Coming Soon</Text>
-        <Text style={styles.featureText}>
-          • More languages will be added in future updates
-        </Text>
-        <Text style={styles.featureText}>
-          • Help us translate! Contact support@bodago.com
-        </Text>
-      </View> */}
     </ScrollView>
   );
 };
@@ -251,26 +256,6 @@ const styles = StyleSheet.create({
     color: '#0066cc',
     marginLeft: 10,
     flex: 1,
-  },
-  featureContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 15,
-    marginHorizontal: 15,
-    marginBottom: 30,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ffc107',
-  },
-  featureTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  featureText: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 5,
   },
 });
 

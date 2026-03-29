@@ -16,7 +16,7 @@ const RiderFAQScreen = ( { navigation } ) => {
       id: 1,
       question: 'How do I accept a delivery request?',
       answer:
-        'When a new delivery request comes in, you will receive a notification. Tap on the notification or go to the Deliveries tab to see the request details. If you want to accept it, tap the "Accept" button. You have a limited time to respond.',
+        'On the app, tap on the button to \'Go Online\' and you will see a list of nearby delivery requests. If you want to accept a request, tap on the request and press the "Accept" button. You have a limited time to respond.',
     },
     {
       id: 2,
@@ -40,25 +40,25 @@ const RiderFAQScreen = ( { navigation } ) => {
       id: 5,
       question: 'What documents do I need to provide?',
       answer:
-        'You need to provide: valid national ID, driver\'s license, vehicle registration, insurance certificate, and a clear profile photo. All documents must be valid and legible.',
+        'You need to provide: valid national ID, driver\'s license, vehicle registration, insurance certificate, police clearance certificate and a clear profile photo. All documents must be valid and legible.',
     },
     {
       id: 6,
       question: 'How do I navigate to a delivery location?',
       answer:
-        'Once you accept a delivery, tap the "Start Navigation" button to open the navigation screen. The app will show you the route to the pickup location, and then to the drop-off location. You can use the in-app navigation or switch to Google Maps.',
+        'Once you accept a delivery, the navigation screen will open automatically to navigate you to the pickup location. Once you arrive at the pickup location and pick up the package, you can tap the "Start Navigation" button to navigate to the drop-off location. You can use the in-app navigation or switch to Google Maps.',
     },
     {
       id: 7,
       question: 'What if I need to cancel a delivery?',
       answer:
-        'You can cancel a delivery before you arrive at the pickup location. However, cancellations may affect your acceptance rating. Try to avoid cancellations as much as possible.',
+        'You can cancel a delivery before you pickup the package at the pickup location. However, cancellations may affect your acceptance rating. Try to avoid cancellations as much as possible.',
     },
     {
       id: 8,
       question: 'How do I update my vehicle information?',
       answer:
-        'Go to your Profile screen and tap "Edit Profile". You can update your vehicle details there. If you change your vehicle, you will need to provide new vehicle documents for verification.',
+        'You need to contact support for assistance. If you need to change your vehicle, you will need to provide new vehicle documents for verification.',
     },
     {
       id: 9,
@@ -68,9 +68,9 @@ const RiderFAQScreen = ( { navigation } ) => {
     },
     {
       id: 10,
-      question: 'How do I contact support?',
+      question: 'How do I contact rider support?',
       answer:
-        'You can reach our support team via phone at +255 712 863 555 or email at support@bodago.co.tz. We are available 24/7 for urgent issues. Use the "Contact Support" option in the Help & Support section.',
+        'You can reach our support team via phone at +255 712 863 555 or email at riders@bodago.co.tz. We are always available for urgent issues. Use the "Contact Support" option in the Help & Support section.',
     },
     {
       id: 11,
@@ -82,7 +82,7 @@ const RiderFAQScreen = ( { navigation } ) => {
       id: 12,
       question: 'What if I have an accident during delivery?',
       answer:
-        'If you have an accident, immediately contact our support team at +255 712 863 555. Take photos of the damage and get the customer\'s contact information. Our team will guide you through the claims process.',
+        'If you have an accident, immediately contact our rider support team at +255 712 863 555. Take photos of the damage and get the customer\'s contact information. Our team will guide you through the claims process.',
     },
   ];
 
