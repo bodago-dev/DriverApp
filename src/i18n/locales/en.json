@@ -29,7 +29,7 @@
     "enter_phone_error": "Please enter your phone number",
     "invalid_phone_error": "Please enter a valid phone number",
     "no_internet_error": "No internet connection. Please check your network.",
-    "otp_failed_error": "Failed to send OTP. Please try again.",
+    "otp_failed_error": "Incorrect OTP code. Please try again.",
     "too_many_attempts_error": "Too many attempts. Please try again later.",
     "invalid_format_error": "Invalid phone number format.",
     "verification_title": "Verification Code",

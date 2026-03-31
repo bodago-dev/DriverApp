@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   errorText: {
-    color: '#f44336',
+    color: '#ff6b6b',
     textAlign: 'center',
     marginBottom: 15,
     fontSize: 14,

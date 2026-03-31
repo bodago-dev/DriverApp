@@ -282,6 +282,34 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
             </View>
           )}
 
+        <View style={styles.languageSelector}>
+          <Text style={styles.languageText}>Language / Lugha:</Text>
+          <View style={styles.languageOptions}>
+            <TouchableOpacity
+              style={styles.languageOption}
+              onPress={() => toggleLanguage('sw')}
+            >
+              <Text style={[
+                styles.languageOptionText,
+                i18n.language === 'sw' && styles.activeLanguage
+              ]}>
+                Swahili
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.languageOption}
+              onPress={() => toggleLanguage('en')}
+            >
+              <Text style={[
+                styles.languageOptionText,
+                i18n.language === 'en' && styles.activeLanguage
+              ]}>
+                English
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
           <View style={styles.requirementsContainer}>
             <Text style={styles.requirementsTitle}>{t('auth.requirements_title') || 'Driver Requirements:'}</Text>
             <Text style={styles.requirementItem}>• {t('auth.req_photo') || 'Profile Photo'}</Text>
@@ -292,34 +320,6 @@ const PhoneAuthScreen: React.FC<PhoneAuthScreenProps> = ({ navigation }) => {
             <Text style={styles.requirementItem}>• {t('auth.req_latra') || 'LATRA Vehicle Licence'}</Text>
             <Text style={styles.requirementItem}>• {t('auth.req_police') || 'Police Clearance Certificate'}</Text>
             <Text style={styles.requirementItem}>• {t('auth.req_age') || 'Age 18 years or above'}</Text>
-          </View>
-
-          <View style={styles.languageSelector}>
-            <Text style={styles.languageText}>Language / Lugha:</Text>
-            <View style={styles.languageOptions}>
-              <TouchableOpacity
-                style={styles.languageOption}
-                onPress={() => toggleLanguage('sw')}
-              >
-                <Text style={[
-                  styles.languageOptionText,
-                  i18n.language === 'sw' && styles.activeLanguage
-                ]}>
-                  Swahili
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.languageOption}
-                onPress={() => toggleLanguage('en')}
-              >
-                <Text style={[
-                  styles.languageOptionText,
-                  i18n.language === 'en' && styles.activeLanguage
-                ]}>
-                  English
-                </Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
