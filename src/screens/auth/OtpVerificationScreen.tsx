@@ -95,14 +95,14 @@ const OtpVerificationScreen = ({ route, navigation }) => {
       try {
         const result = await authService.sendOTP(phoneNumber);
         if (result.success) {
-          Alert.alert(t('common.success'), 'A new verification code has been sent to your phone.');
+          Alert.alert(t('common.success'), t('auth.otp_resend_msg'));
           setTimer(60);
           clearOtpAndRefocus(); // Clear existing OTP when resending
         } else {
-          Alert.alert('Error', result.error || 'Failed to resend OTP');
+          Alert.alert(t('common.error'), result.error || t('auth.otp_unexpected_error'));
         }
       } catch (error) {
-        Alert.alert('Error', 'Failed to resend OTP. Please try again.');
+        Alert.alert(t('common.error'), t('auth.otp_unexpected_error'));
       } finally {
         setIsResending(false);
       }
@@ -113,13 +113,13 @@ const OtpVerificationScreen = ({ route, navigation }) => {
 
     // Validate OTP length
     if (otpCode.length !== 6) {
-      Alert.alert(t('common.warning'), 'Please enter the complete 6-digit verification code.');
+      Alert.alert(t('common.warning'), t('auth.otp_incomplete_error'));
       return;
     }
 
     // Validate that all digits are numbers
     if (!/^\d+$/.test(otpCode)) {
-      Alert.alert(t('common.error'), 'Please enter only numbers in the verification code.');
+      Alert.alert(t('common.error'), t('auth.otp_numbers_only_error'));
       return;
     }
 
@@ -151,7 +151,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
     } catch (error) {
       // This catch block should only handle unexpected errors, not OTP verification errors
       console.error('Unexpected error during verification:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      Alert.alert(t('common.error'), t('auth.otp_unexpected_error'));
       clearOtpAndRefocus();
     } finally {
       setIsVerifying(false);
@@ -209,7 +209,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
 
         <View style={styles.resendContainer}>
           <Text style={styles.resendText}>
-            Didn't receive the code?{' '}
+            {t('auth.otp_not_received')}{' '}
           </Text>
           <TouchableOpacity
             onPress={handleResendOtp}
@@ -284,9 +284,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   otpInputError: {
-    borderColor: '#f44336',
-    backgroundColor: '#ffebee',
-    borderWidth: 2,
+    borderColor: '#ff6b6b',
+    backgroundColor: '#fff5f5',
   },
   otpInputDisabled: {
     backgroundColor: '#f9f9f9',
@@ -337,9 +336,8 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#ff6b6b',
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
     fontSize: 14,
-    fontWeight: '500',
   },
 });
 

@@ -12,8 +12,10 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import authService from '../../services/AuthService';
 import firestoreService from '../../services/FirestoreService';
+import { useTranslation } from 'react-i18next';
 
 const DeliveryHistoryScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -26,9 +28,9 @@ const DeliveryHistoryScreen = ({ navigation }) => {
       setDriverId(currentUser.uid);
     } else {
       setLoading(false);
-      Alert.alert('Error', 'User not authenticated. Please log in.');
+      Alert.alert(t('common.error'), t('delivery.history_auth_error'));
     }
-  }, []);
+  }, [t]);
 
   const fetchDeliveries = async () => {
     try {
@@ -50,7 +52,6 @@ const DeliveryHistoryScreen = ({ navigation }) => {
             ['delivered', 'cancelled'].includes(delivery.status)
           );
         }
-//         console.log('Delivery History..', fetchedDeliveries);
 
         // Sort by date (newest first)
         const sortedDeliveries = fetchedDeliveries.sort((a, b) => {
@@ -63,7 +64,7 @@ const DeliveryHistoryScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error fetching deliveries:', error);
-      Alert.alert('Error', 'An unexpected error occurred while fetching deliveries.');
+      Alert.alert(t('common.error'), t('delivery.history_error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -101,19 +102,19 @@ const DeliveryHistoryScreen = ({ navigation }) => {
   const getStatusText = (status) => {
     switch (status) {
       case 'delivered':
-        return 'Delivered';
+        return t('delivery.status_delivered');
       case 'in_transit':
-        return 'In Transit';
+        return t('delivery.status_in_transit');
       case 'accepted':
-        return 'Driver Assigned';
+        return t('delivery.status_driver_assigned');
       case 'arrived_pickup':
-        return 'At Pickup';
+        return t('delivery.status_at_pickup');
       case 'picked_up':
-        return 'Picked Up';
+        return t('delivery.status_picked_up');
       case 'arrived_dropoff':
-        return 'At Destination';
+        return t('delivery.status_at_destination');
       case 'cancelled':
-        return 'Cancelled';
+        return t('delivery.status_cancelled');
       default:
         return status.replace('_', ' ');
     }
@@ -214,7 +215,7 @@ const DeliveryHistoryScreen = ({ navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0066cc" />
-        <Text style={styles.loadingText}>Loading your deliveries...</Text>
+        <Text style={styles.loadingText}>{t('delivery.history_loading')}</Text>
       </View>
     );
   }
@@ -227,21 +228,21 @@ const DeliveryHistoryScreen = ({ navigation }) => {
           style={[styles.tab, activeTab === 'all' && styles.activeTab]}
           onPress={() => setActiveTab('all')}>
           <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
-            All
+            {t('delivery.tab_all')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'active' && styles.activeTab]}
           onPress={() => setActiveTab('active')}>
           <Text style={[styles.tabText, activeTab === 'active' && styles.activeTabText]}>
-            Active
+            {t('delivery.tab_active')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'completed' && styles.activeTab]}
           onPress={() => setActiveTab('completed')}>
           <Text style={[styles.tabText, activeTab === 'completed' && styles.activeTabText]}>
-            Completed
+            {t('delivery.tab_completed')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -261,13 +262,13 @@ const DeliveryHistoryScreen = ({ navigation }) => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="time-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No deliveries found</Text>
+            <Text style={styles.emptyText}>{t('delivery.no_deliveries_found')}</Text>
             <Text style={styles.emptySubtext}>
               {activeTab === 'all'
-                ? 'Your delivery history will appear here'
+                ? t('delivery.history_empty_all')
                 : activeTab === 'active'
-                  ? 'You don\'t have any active deliveries'
-                  : 'You don\'t have any completed deliveries'}
+                  ? t('delivery.history_empty_active')
+                  : t('delivery.history_empty_completed')}
             </Text>
           </View>
         }
@@ -353,15 +354,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'capitalize',
     color: '#000',
-  },
-  deliveredStatus: {
-    color: '#4caf50',
-  },
-  cancelledStatus: {
-    color: '#f44336',
-  },
-  otherStatus: {
-    color: '#ff9800',
   },
   deliveryFare: {
     fontSize: 14,

@@ -14,10 +14,12 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import authService from '../../services/AuthService';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
+import { useTranslation } from 'react-i18next';
 
 const VehicleInfoScreen = ({ route, navigation }) => {
+  const { t } = useTranslation();
   const { driverProfile } = route.params;
-  
+
   const [vehicleType, setVehicleType] = useState('');
   const [vehicleMake, setVehicleMake] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
@@ -34,12 +36,12 @@ const VehicleInfoScreen = ({ route, navigation }) => {
 const handleContinue = async () => {
   // Basic validation
   if (!vehicleType) {
-    Alert.alert('Missing Information', 'Please select a vehicle type');
+    Alert.alert(t('common.warning'), t('onboarding.vehicle_type_error'));
     return;
   }
 
   if (!vehicleMake.trim() || !vehicleModel.trim() || !vehicleYear.trim() || !licensePlate.trim()) {
-    Alert.alert('Missing Information', 'Please fill in all required fields');
+    Alert.alert(t('common.warning'), t('onboarding.vehicle_fields_error'));
     return;
   }
 
@@ -69,7 +71,7 @@ const handleContinue = async () => {
       }
     });
   } catch (error) {
-    Alert.alert('Error', 'Failed to save vehicle info');
+    Alert.alert(t('common.error'), t('onboarding.vehicle_save_error'));
   } finally {
     setIsLoading(false);
   }
@@ -80,14 +82,14 @@ const handleContinue = async () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.title}>Vehicle Information</Text>
+        <Text style={styles.title}>{t('onboarding.vehicle_title')}</Text>
         <Text style={styles.subtitle}>
-          Tell us about your vehicle
+          {t('onboarding.vehicle_info_subtitle')}
         </Text>
 
         <View style={styles.formContainer}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Vehicle Type <Text style={styles.required}>*</Text></Text>
+            <Text style={styles.label}>{t('onboarding.vehicle_type')} <Text style={styles.required}>*</Text></Text>
             <View style={styles.vehicleTypesContainer}>
               {vehicleTypes.map((type) => (
                 <TouchableOpacity
@@ -115,20 +117,20 @@ const handleContinue = async () => {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Vehicle Make <Text style={styles.required}>*</Text></Text>
+            <Text style={styles.label}>{t('onboarding.vehicle_make')} <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g., Toyota, Honda, Bajaj"
+              placeholder={t('onboarding.vehicle_make_placeholder')}
               value={vehicleMake}
               onChangeText={setVehicleMake}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Vehicle Model <Text style={styles.required}>*</Text></Text>
+            <Text style={styles.label}>{t('onboarding.vehicle_model')} <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g., Hiace, RE, Boxer"
+              placeholder={t('onboarding.vehicle_model_placeholder')}
               value={vehicleModel}
               onChangeText={setVehicleModel}
             />
@@ -136,10 +138,10 @@ const handleContinue = async () => {
 
           <View style={styles.rowInputs}>
             <View style={[styles.inputGroup, styles.halfInput]}>
-              <Text style={styles.label}>Year <Text style={styles.required}>*</Text></Text>
+              <Text style={styles.label}>{t('onboarding.vehicle_year')} <Text style={styles.required}>*</Text></Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., 2020"
+                placeholder={t('onboarding.vehicle_year_placeholder')}
                 value={vehicleYear}
                 onChangeText={setVehicleYear}
                 keyboardType="number-pad"
@@ -148,10 +150,10 @@ const handleContinue = async () => {
             </View>
 
             <View style={[styles.inputGroup, styles.halfInput]}>
-              <Text style={styles.label}>License Plate <Text style={styles.required}>*</Text></Text>
+              <Text style={styles.label}>{t('onboarding.plate_number')} <Text style={styles.required}>*</Text></Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., T 123 ABC"
+                placeholder={t('onboarding.vehicle_plate_placeholder')}
                 value={licensePlate}
                 onChangeText={setLicensePlate}
                 autoCapitalize="characters"
@@ -163,7 +165,7 @@ const handleContinue = async () => {
         <View style={styles.infoContainer}>
           <Ionicons name="information-circle-outline" size={20} color="#0066cc" />
           <Text style={styles.infoText}>
-            Your vehicle information will be verified and displayed to customers during deliveries.
+            {t('onboarding.vehicle_info_display')}
           </Text>
         </View>
 
@@ -172,7 +174,7 @@ const handleContinue = async () => {
           onPress={handleContinue}
           disabled={isLoading}>
           <Text style={styles.buttonText}>
-            {isLoading ? 'Saving...' : 'Continue'}
+            {isLoading ? t('common.saving') : t('common.continue')}
           </Text>
         </TouchableOpacity>
       </ScrollView>

@@ -9,8 +9,10 @@ import {
   Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 
 const RiderAboutScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const handleOpenLink = (url) => {
     Linking.openURL(url).catch((err) =>
       console.error('Failed to open URL:', err)
@@ -42,64 +44,60 @@ const RiderAboutScreen = ({ navigation }) => {
 
       {/* App Version */}
       <View style={styles.versionContainer}>
-     {/*<Text style={styles.appName}>BodaGo Rider</Text>*/}
-        <Text style={styles.versionText}>Version 1.0.0</Text>
-        <Text style={styles.tagline}>Earn Money with BodaGo</Text>
+        <Text style={styles.versionText}>{t('profile.version')} 1.0.0</Text>
+        <Text style={styles.tagline}>{t('about.tagline')}</Text>
       </View>
 
       {/* About Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>About BodaGo Rider</Text>
+        <Text style={styles.sectionTitle}>{t('about.about_title')}</Text>
         <Text style={styles.sectionContent}>
-          BodaGo Rider is the official app for delivery partners on the BodaGo
-          platform. Join thousands of riders earning money by delivering packages
-          across Dar es Salaam, Tanzania. Work on your own schedule and earn
-          competitive rates with every delivery.
+          {t('about.about_content')}
         </Text>
       </View>
 
       {/* Why Become a Rider Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Why Become a BodaGo Rider?</Text>
+        <Text style={styles.sectionTitle}>{t('about.why_title')}</Text>
         <View style={styles.featureList}>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
-            <Text style={styles.featureText}>Flexible Working Hours</Text>
+            <Text style={styles.featureText}>{t('about.flexible_hours')}</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
-            <Text style={styles.featureText}>Competitive Earnings</Text>
+            <Text style={styles.featureText}>{t('about.competitive_earnings')}</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
-            <Text style={styles.featureText}>Weekly Payouts</Text>
+            <Text style={styles.featureText}>{t('about.weekly_payouts')}</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
-            <Text style={styles.featureText}>24/7 Support</Text>
+            <Text style={styles.featureText}>{t('about.support_247')}</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
-            <Text style={styles.featureText}>Real-time Tracking</Text>
+            <Text style={styles.featureText}>{t('about.realtime_tracking')}</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
-            <Text style={styles.featureText}>Bonus Opportunities</Text>
+            <Text style={styles.featureText}>{t('about.bonus_opportunities')}</Text>
           </View>
         </View>
       </View>
 
       {/* How It Works Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>How It Works</Text>
+        <Text style={styles.sectionTitle}>{t('about.how_it_works')}</Text>
         <View style={styles.stepList}>
           <View style={styles.stepItem}>
             <View style={styles.stepNumber}>
               <Text style={styles.stepNumberText}>1</Text>
             </View>
             <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Sign Up & Verify</Text>
-              <Text style={styles.stepDesc}>Create your account and submit required documents</Text>
+              <Text style={styles.stepTitle}>{t('about.step1_title')}</Text>
+              <Text style={styles.stepDesc}>{t('about.step1_desc')}</Text>
             </View>
           </View>
           <View style={styles.stepItem}>
@@ -107,8 +105,8 @@ const RiderAboutScreen = ({ navigation }) => {
               <Text style={styles.stepNumberText}>2</Text>
             </View>
             <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Go Online</Text>
-              <Text style={styles.stepDesc}>Toggle your availability to start receiving requests</Text>
+              <Text style={styles.stepTitle}>{t('about.step2_title')}</Text>
+              <Text style={styles.stepDesc}>{t('about.step2_desc')}</Text>
             </View>
           </View>
           <View style={styles.stepItem}>
@@ -116,8 +114,8 @@ const RiderAboutScreen = ({ navigation }) => {
               <Text style={styles.stepNumberText}>3</Text>
             </View>
             <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Accept Deliveries</Text>
-              <Text style={styles.stepDesc}>Accept delivery requests and earn money</Text>
+              <Text style={styles.stepTitle}>{t('about.step3_title')}</Text>
+              <Text style={styles.stepDesc}>{t('about.step3_desc')}</Text>
             </View>
           </View>
           <View style={styles.stepItem}>
@@ -125,8 +123,8 @@ const RiderAboutScreen = ({ navigation }) => {
               <Text style={styles.stepNumberText}>4</Text>
             </View>
             <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Get Paid</Text>
-              <Text style={styles.stepDesc}>Receive weekly payouts to your mobile money account</Text>
+              <Text style={styles.stepTitle}>{t('about.step4_title')}</Text>
+              <Text style={styles.stepDesc}>{t('about.step4_desc')}</Text>
             </View>
           </View>
         </View>
@@ -134,27 +132,27 @@ const RiderAboutScreen = ({ navigation }) => {
 
       {/* Vehicle Types Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Vehicle Types Supported</Text>
+        <Text style={styles.sectionTitle}>{t('about.vehicles_supported')}</Text>
         <View style={styles.vehicleList}>
           <View style={styles.vehicleItem}>
             <Ionicons name="bicycle" size={24} color="#0066cc" />
             <View style={styles.vehicleContent}>
               <Text style={styles.vehicleTitle}>Bodaboda</Text>
-              <Text style={styles.vehicleDesc}>Best for small packages and quick deliveries</Text>
+              <Text style={styles.vehicleDesc}>{t('about.boda_desc')}</Text>
             </View>
           </View>
           <View style={styles.vehicleItem}>
             <Ionicons name="car" size={24} color="#0066cc" />
             <View style={styles.vehicleContent}>
               <Text style={styles.vehicleTitle}>Bajaji</Text>
-              <Text style={styles.vehicleDesc}>Weather protection and more capacity</Text>
+              <Text style={styles.vehicleDesc}>{t('about.bajaji_desc')}</Text>
             </View>
           </View>
           <View style={styles.vehicleItem}>
             <Ionicons name="car" size={24} color="#0066cc" />
             <View style={styles.vehicleContent}>
               <Text style={styles.vehicleTitle}>Guta</Text>
-              <Text style={styles.vehicleDesc}>Large capacity for bulk deliveries</Text>
+              <Text style={styles.vehicleDesc}>{t('about.guta_desc')}</Text>
             </View>
           </View>
         </View>
@@ -162,14 +160,14 @@ const RiderAboutScreen = ({ navigation }) => {
 
       {/* Contact Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Contact Us</Text>
+        <Text style={styles.sectionTitle}>{t('about.contact_us')}</Text>
         <TouchableOpacity
           style={styles.contactItem}
           onPress={handleCallSupport}
         >
           <Ionicons name="call" size={20} color="#0066cc" />
           <View style={styles.contactContent}>
-            <Text style={styles.contactLabel}>Phone</Text>
+            <Text style={styles.contactLabel}>{t('about.phone')}</Text>
             <Text style={styles.contactValue}>+255 712 863 555</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
@@ -181,7 +179,7 @@ const RiderAboutScreen = ({ navigation }) => {
         >
           <Ionicons name="mail" size={20} color="#0066cc" />
           <View style={styles.contactContent}>
-            <Text style={styles.contactLabel}>Email</Text>
+            <Text style={styles.contactLabel}>{t('about.email')}</Text>
             <Text style={styles.contactValue}>riders@bodago.co.tz</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
@@ -193,7 +191,7 @@ const RiderAboutScreen = ({ navigation }) => {
         >
           <Ionicons name="globe" size={20} color="#0066cc" />
           <View style={styles.contactContent}>
-            <Text style={styles.contactLabel}>Website</Text>
+            <Text style={styles.contactLabel}>{t('about.website')}</Text>
             <Text style={styles.contactValue}>bodago.co.tz</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
@@ -202,27 +200,27 @@ const RiderAboutScreen = ({ navigation }) => {
 
       {/* Legal Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Legal</Text>
+        <Text style={styles.sectionTitle}>{t('about.legal')}</Text>
         <TouchableOpacity
           style={styles.linkItem}
           onPress={() => navigation.navigate('TermsOfService')}
         >
-          <Text style={styles.linkText}>Terms of Service</Text>
+          <Text style={styles.linkText}>{t('profile.terms')}</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.linkItem}
           onPress={() => navigation.navigate('PrivacyPolicy')}
         >
-          <Text style={styles.linkText}>Privacy Policy</Text>
+          <Text style={styles.linkText}>{t('profile.privacy')}</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />
         </TouchableOpacity>
       </View>
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>© 2026 BodaGo. All rights reserved.</Text>
-        <Text style={styles.footerText}>Built for Africa.</Text>
+        <Text style={styles.footerText}>{t('profile.copyright')}</Text>
+        <Text style={styles.footerText}>{t('about.built_for_africa')}</Text>
       </View>
     </ScrollView>
   );
@@ -271,7 +269,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
     borderTopWidth: 1,
-    borderTopColor: '#f0ff0f0',
+    borderTopColor: '#f0f0f0',
   },
   sectionTitle: {
     fontSize: 18,

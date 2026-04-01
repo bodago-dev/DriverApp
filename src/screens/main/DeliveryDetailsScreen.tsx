@@ -11,13 +11,14 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import firestoreService from '../../services/FirestoreService';
-// import { formatPrice } from '../../utils/helpers';
+import { useTranslation } from 'react-i18next';
 
 const formatPrice = (price: number) => {
   return `TZS ${price.toLocaleString()}`;
 };
 
 const DeliveryDetailsScreen = ({ route, navigation }) => {
+  const { t } = useTranslation();
   const { deliveryId } = route.params;
   const [delivery, setDelivery] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,7 +46,7 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0066cc" />
-        <Text style={styles.loadingText}>Loading delivery details...</Text>
+        <Text style={styles.loadingText}>{t('delivery.details_loading')}</Text>
       </View>
     );
   }
@@ -53,7 +54,7 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
   if (!delivery) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Failed to load delivery details</Text>
+        <Text style={styles.errorText}>{t('delivery.details_error')}</Text>
       </View>
     );
   }
@@ -62,17 +63,17 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
     if (!status) return 'Unknown';
 
     const statusMap = {
-      'pending': 'Pending',
-      'searching': 'Searching for Driver',
-      'accepted': 'Accepted',
-      'arrived_pickup': 'Arrived at Pickup',
-      'picked_up': 'Picked Up',
-      'in_transit': 'In Transit',
-      'arrived_dropoff': 'Arrived at Dropoff',
-      'delivered': 'Delivered',
-      'cancelled': 'Cancelled',
-      'failed': 'Failed',
-      'driver_assigned': 'Driver Assigned' // Add this if needed
+      'pending': t('delivery.status_pending'),
+      'searching': t('delivery.status_searching'),
+      'accepted': t('delivery.status_accepted'),
+      'arrived_pickup': t('delivery.status_at_pickup'),
+      'picked_up': t('delivery.status_picked_up'),
+      'in_transit': t('delivery.status_in_transit'),
+      'arrived_dropoff': t('delivery.status_at_destination'),
+      'delivered': t('delivery.status_delivered'),
+      'cancelled': t('delivery.status_cancelled'),
+      'failed': t('delivery.status_failed'),
+      'driver_assigned': t('delivery.status_driver_assigned')
     };
 
     // Fallback to capitalize and replace underscores if not found in map
@@ -98,12 +99,10 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
     return colorMap[status] || '#666';
   };
 
-//   console.log('Delivery status:', delivery);
-
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Delivery Details</Text>
+        <Text style={styles.headerTitle}>{t('delivery.details')}</Text>
         <Text style={styles.deliveryId}>Order #{delivery.id?.substring(0, 8) || 'N/A'}</Text>
       </View>
 
@@ -113,12 +112,12 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Route</Text>
+        <Text style={styles.cardTitle}>{t('delivery.route')}</Text>
         <View style={styles.routeInfo}>
           <View style={styles.locationRow}>
             <Ionicons name="locate" size={16} color="#0066cc" />
             <Text style={styles.locationText}>
-              {delivery.pickupLocation?.name || delivery.pickupLocation?.address || 'Pickup location'}
+              {delivery.pickupLocation?.name || delivery.pickupLocation?.address || t('home.pickup')}
             </Text>
           </View>
           <View style={styles.routeDivider}>
@@ -127,35 +126,35 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
           <View style={styles.locationRow}>
             <Ionicons name="location" size={16} color="#ff6b6b" />
             <Text style={styles.locationText}>
-              {delivery.dropoffLocation?.name || delivery.dropoffLocation?.address || 'Dropoff location'}
+              {delivery.dropoffLocation?.name || delivery.dropoffLocation?.address || t('home.dropoff')}
             </Text>
           </View>
         </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Package Details</Text>
+        <Text style={styles.cardTitle}>{t('delivery.package_details')}</Text>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Package Type</Text>
+          <Text style={styles.detailLabel}>{t('delivery.package_type')}</Text>
           <Text style={styles.detailValue}>{delivery.packageDetails?.description || 'N/A'}</Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Size</Text>
+          <Text style={styles.detailLabel}>{t('delivery.size')}</Text>
           <Text style={styles.detailValue}>
-            {delivery.packageDetails?.size === 'small' ? 'Small' :
-             delivery.packageDetails?.size === 'medium' ? 'Medium' : 'Large'}
+            {delivery.packageDetails?.size === 'small' ? t('delivery.size_small') :
+             delivery.packageDetails?.size === 'medium' ? t('delivery.size_medium') : t('delivery.size_large')}
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Weight</Text>
+          <Text style={styles.detailLabel}>{t('delivery.weight')}</Text>
           <Text style={styles.detailValue}>
-            {delivery.packageDetails?.weight === 'small' ? 'Light' :
-             delivery.packageDetails?.weight === 'medium' ? 'Medium' : 'Heavy'}
+            {delivery.packageDetails?.weight === 'small' ? t('delivery.weight_light') :
+             delivery.packageDetails?.weight === 'medium' ? t('delivery.weight_medium') : t('delivery.weight_heavy')}
           </Text>
         </View>
         {delivery.packageDetails?.specialInstructions && (
           <View style={styles.specialInstructionsContainer}>
-            <Text style={styles.detailLabel}>Special Instructions</Text>
+            <Text style={styles.detailLabel}>{t('delivery.special_instructions')}</Text>
             <Text style={styles.specialInstructionsText}>
               {delivery.packageDetails.specialInstructions}
             </Text>
@@ -164,22 +163,22 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Delivery Information</Text>
+        <Text style={styles.cardTitle}>{t('delivery.delivery_info')}</Text>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Vehicle</Text>
+          <Text style={styles.detailLabel}>{t('delivery.vehicle')}</Text>
           <Text style={styles.detailValue}>
             {delivery.selectedVehicle?.name || 'N/A'}
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Requested At</Text>
+          <Text style={styles.detailLabel}>{t('delivery.requested_at')}</Text>
           <Text style={styles.detailValue}>
             {delivery.createdAt?.toDate().toLocaleString() || 'N/A'}
           </Text>
         </View>
         {delivery.timeline?.delivered && (
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Delivered At</Text>
+            <Text style={styles.detailLabel}>{t('delivery.delivered_at')}</Text>
             <Text style={styles.detailValue}>
               {delivery.timeline.delivered.toDate().toLocaleString()}
             </Text>
@@ -188,30 +187,30 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
       </View>
 
       <View style={styles.bottomCard}>
-        <Text style={styles.cardTitle}>Payment</Text>
+        <Text style={styles.cardTitle}>{t('delivery.payment')}</Text>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Payment Method</Text>
+          <Text style={styles.detailLabel}>{t('delivery.payment_method')}</Text>
           <Text style={styles.detailValue}>
-            {delivery.paymentMethod === 'cash' ? 'Cash on Delivery' :
+            {delivery.paymentMethod === 'cash' ? t('delivery.cash_on_delivery') :
              delivery.paymentMethod === 'mpesa' ? 'M-Pesa' :
              delivery.paymentMethod === 'airtelmoney' ? 'Airtel Money' :
              delivery.paymentMethod === 'mixx' ? 'Mixx by Yas' : 'N/A'}
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Total Fare</Text>
+          <Text style={styles.detailLabel}>{t('delivery.total_fare')}</Text>
           <Text style={styles.detailValue}>
             {formatPrice(delivery.fareDetails?.total || 0)}
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Service Fee (18%)</Text>
+          <Text style={styles.detailLabel}>{t('delivery.service_fee')}</Text>
           <Text style={[styles.detailValue, { color: '#ff6b6b' }]}>
             -{formatPrice(delivery.fareDetails?.serviceFee || 0)}
           </Text>
         </View>
         <View style={[styles.detailRow, { marginTop: 5, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 }]}>
-          <Text style={[styles.detailLabel, { fontWeight: 'bold', color: '#333' }]}>Your Earnings</Text>
+          <Text style={[styles.detailLabel, { fontWeight: 'bold', color: '#333' }]}>{t('delivery.your_earnings')}</Text>
           <Text style={[styles.detailValue, { fontWeight: 'bold', color: '#4caf50', fontSize: 16 }]}>
             {formatPrice((delivery.fareDetails?.total || 0) - (delivery.fareDetails?.serviceFee || 0))}
           </Text>
@@ -220,7 +219,7 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
 
       {delivery.rating && (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Your Rating</Text>
+          <Text style={styles.cardTitle}>{t('delivery.your_rating')}</Text>
           <View style={styles.ratingContainer}>
             {[1, 2, 3, 4, 5].map((star) => (
               <Ionicons

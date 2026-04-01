@@ -14,68 +14,70 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import authService from '../../services/AuthService';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { navigationRef } from '../../services/NavigationService';
+import { useTranslation } from 'react-i18next';
 
 const DocumentVerificationScreen = ({ route, navigation }) => {
+  const { t } = useTranslation();
   const { driverProfile, vehicleInfo } = route.params;
-  
+
   const [documents, setDocuments] = useState({
     drivingLicense: null,
     vehicleRegistration: null,
     nationalId: null,
     insuranceDocument: null,
   });
-  
+
   const [isLoading, setIsLoading] = useState(false);
 
   const documentTypes = [
-    { 
-      id: 'drivingLicense', 
-      name: 'Driving License', 
+    {
+      id: 'drivingLicense',
+      name: t('onboarding.doc_driving_license'),
       icon: 'card-outline',
       required: true,
-      description: 'Valid driving license (front and back)'
+      description: t('onboarding.doc_driving_license_desc')
     },
-    { 
-      id: 'vehicleRegistration', 
-      name: 'Vehicle Registration', 
+    {
+      id: 'vehicleRegistration',
+      name: t('onboarding.doc_vehicle_reg'),
       icon: 'document-text-outline',
       required: true,
-      description: 'Vehicle registration card or document'
+      description: t('onboarding.doc_vehicle_reg_desc')
     },
-    { 
-      id: 'nationalId', 
-      name: 'National ID / Passport', 
+    {
+      id: 'nationalId',
+      name: t('onboarding.doc_national_id'),
       icon: 'person-outline',
       required: true,
-      description: 'National ID card or passport'
+      description: t('onboarding.doc_national_id_desc')
     },
-    { 
-      id: 'insuranceDocument', 
-      name: 'Insurance Document', 
+    {
+      id: 'insuranceDocument',
+      name: t('onboarding.doc_insurance'),
       icon: 'shield-checkmark-outline',
       required: false,
-      description: 'Vehicle insurance document (if available)'
+      description: t('onboarding.doc_insurance_desc')
     },
   ];
 
   const handleUploadDocument = (documentId) => {
     // In a real app, this would open the camera or file picker
     // For demo purposes, we'll simulate uploading a document
-    
+
     Alert.alert(
-      'Upload Document',
-      'Choose upload method',
+      t('onboarding.docs_upload_method'),
+      '',
       [
         {
-          text: 'Take Photo',
+          text: t('onboarding.take_photo'),
           onPress: () => simulateDocumentUpload(documentId, 'camera'),
         },
         {
-          text: 'Choose from Gallery',
+          text: t('onboarding.choose_library'),
           onPress: () => simulateDocumentUpload(documentId, 'gallery'),
         },
         {
-          text: 'Cancel',
+          text: t('common.cancel'),
           style: 'cancel',
         },
       ]
@@ -91,7 +93,7 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
       source,
       uploadDate: new Date().toISOString(),
     };
-    
+
     setDocuments(updatedDocuments);
   };
 
@@ -103,8 +105,8 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
 
     if (missingRequiredDocuments.length > 0) {
       Alert.alert(
-        'Missing Documents',
-        `Please upload the following required documents:\n${missingRequiredDocuments.join('\n')}`,
+        t('common.warning'),
+        `${t('onboarding.docs_missing_error')}\n• ${missingRequiredDocuments.join('\n• ')}`,
       );
       return;
     }
@@ -124,7 +126,7 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
         });
 
         if (!updateResult.success) {
-          Alert.alert('Error', updateResult.error || 'Failed to save documents');
+          Alert.alert(t('common.error'), updateResult.error || t('onboarding.docs_save_error'));
           return;
         }
 
@@ -133,11 +135,11 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
 
         if (onboardingResult.success) {
           Alert.alert(
-            'Documents Submitted',
-            'Your documents have been submitted for verification. You will be notified once your account is activated. This usually takes 1-2 business days.',
+            t('onboarding.docs_submitted_title'),
+            t('onboarding.docs_submitted_msg'),
             [
               {
-                text: 'OK',
+                text: t('common.ok'),
                 onPress: () => {
                   // The navigation will be handled by the MainNavigator
                   // since onboardingCompleted is now true
@@ -148,14 +150,14 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
             ]
           );
         } else {
-          Alert.alert('Error', onboardingResult.error || 'Failed to complete onboarding');
+          Alert.alert(t('common.error'), onboardingResult.error || t('onboarding.docs_save_error'));
         }
       } else {
-        Alert.alert('Error', 'User not authenticated');
+        Alert.alert(t('common.error'), t('delivery.history_auth_error'));
       }
     } catch (error) {
       console.error('Document submission error:', error);
-      Alert.alert('Error', 'Failed to submit documents. Please try again.');
+      Alert.alert(t('common.error'), t('onboarding.docs_save_error'));
     } finally {
       setIsLoading(false);
     }
@@ -166,9 +168,9 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.title}>Document Verification</Text>
+        <Text style={styles.title}>{t('onboarding.docs_title')}</Text>
         <Text style={styles.subtitle}>
-          Upload the required documents to verify your account
+          {t('onboarding.docs_subtitle')}
         </Text>
 
         <View style={styles.documentsContainer}>
@@ -186,25 +188,25 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
                   <Text style={styles.documentDescription}>{document.description}</Text>
                 </View>
               </View>
-              
+
               {documents[document.id] ? (
                 <View style={styles.uploadedDocument}>
                   <View style={styles.uploadedDocumentInfo}>
                     <Ionicons name="checkmark-circle" size={20} color="#4caf50" />
                     <Text style={styles.uploadedDocumentName}>{documents[document.id].name}</Text>
                   </View>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.reuploadButton}
                     onPress={() => handleUploadDocument(document.id)}>
-                    <Text style={styles.reuploadButtonText}>Re-upload</Text>
+                    <Text style={styles.reuploadButtonText}>{t('onboarding.docs_reupload')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.uploadButton}
                   onPress={() => handleUploadDocument(document.id)}>
                   <Ionicons name="cloud-upload-outline" size={18} color="#0066cc" />
-                  <Text style={styles.uploadButtonText}>Upload Document</Text>
+                  <Text style={styles.uploadButtonText}>{t('onboarding.upload_photo')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -214,7 +216,7 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
         <View style={styles.infoContainer}>
           <Ionicons name="information-circle-outline" size={20} color="#0066cc" />
           <Text style={styles.infoText}>
-            All documents must be clear, legible, and valid. Verification may take 1-2 business days.
+            {t('onboarding.docs_info_text')}
           </Text>
         </View>
 
@@ -223,7 +225,7 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
           onPress={handleSubmit}
           disabled={isLoading}>
           <Text style={styles.buttonText}>
-            {isLoading ? 'Submitting...' : 'Submit Documents'}
+            {isLoading ? t('common.submitting') : t('common.submit')}
           </Text>
         </TouchableOpacity>
       </ScrollView>

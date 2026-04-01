@@ -8,18 +8,20 @@ import {
   Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 
 const SupportScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const supportOptions = [
     {
       id: 'faq',
-      title: 'Frequently Asked Questions',
+      title: t('support.faq_title'),
       icon: 'help-circle-outline',
       onPress: () => navigation.navigate('RiderFAQ'),
     },
     {
       id: 'contact',
-      title: 'Contact Support',
+      title: t('support.contact_title'),
       icon: 'call-outline',
       onPress: () => navigation.navigate('RiderContactSupport'),
     },
@@ -33,8 +35,8 @@ const handleCallEmergency = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>How can we help you?</Text>
-      
+      <Text style={styles.title}>{t('support.help_title')}</Text>
+
       <View style={styles.optionsContainer}>
         {supportOptions.map((option) => (
           <TouchableOpacity
@@ -47,11 +49,11 @@ const handleCallEmergency = () => {
           </TouchableOpacity>
         ))}
       </View>
-      
+
       <View style={styles.emergencyContainer}>
-        <Text style={styles.emergencyTitle}>Emergency Contact</Text>
+        <Text style={styles.emergencyTitle}>{t('support.emergency_title')}</Text>
         <Text style={styles.emergencyText}>
-          For urgent delivery issues, call our support line:
+          {t('support.emergency_text')}
         </Text>
         <TouchableOpacity 
           style={styles.emergencyButton} 

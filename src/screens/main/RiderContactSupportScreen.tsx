@@ -11,8 +11,10 @@ import {
   Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 
 const RiderContactSupportScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -20,31 +22,31 @@ const RiderContactSupportScreen = ({ navigation }) => {
   const contactMethods = [
     {
       id: 'phone',
-      title: 'Call Us',
-      description: '24/7 Support Line',
+      title: t('support.call_us'),
+      description: t('support.support_line_247'),
       icon: 'call',
       value: '+255 712 863 555',
     },
     {
       id: 'email',
-      title: 'Email Us',
-      description: 'We reply within 2 hours',
+      title: t('support.email_us'),
+      description: t('support.reply_time'),
       icon: 'mail',
       value: 'support@bodago.co.tz',
     },
     {
       id: 'whatsapp',
-      title: 'WhatsApp',
-      description: 'Quick response',
+      title: t('support.whatsapp'),
+      description: t('support.quick_response'),
       icon: 'logo-whatsapp',
       value: '+255 712 863 555',
     },
     {
       id: 'chat',
-      title: 'Live Chat',
-      description: 'Chat with our team',
+      title: t('support.live_chat'),
+      description: t('support.chat_with_team'),
       icon: 'chatbubble',
-      value: 'Available 9 AM - 6 PM',
+      value: t('support.chat_availability'),
     },
   ];
 
@@ -68,7 +70,7 @@ const RiderContactSupportScreen = ({ navigation }) => {
 
   const handleSendMessage = async () => {
     if (!message.trim()) {
-      Alert.alert('Error', 'Please enter your message');
+      Alert.alert(t('common.error'), t('support.message_empty_error'));
       return;
     }
 
@@ -77,13 +79,13 @@ const RiderContactSupportScreen = ({ navigation }) => {
       // Simulate sending message
       await new Promise((resolve) => setTimeout(resolve, 1500));
       Alert.alert(
-        'Success',
-        'Your message has been sent. We will get back to you soon.'
+        t('common.success'),
+        t('support.message_sent_success')
       );
       setMessage('');
       setSelectedMethod(null);
     } catch (error) {
-      Alert.alert('Error', 'Failed to send message. Please try again.');
+      Alert.alert(t('common.error'), t('support.message_send_error'));
     } finally {
       setIsLoading(false);
     }
@@ -91,9 +93,9 @@ const RiderContactSupportScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Contact Support</Text>
+      <Text style={styles.title}>{t('support.contact_title')}</Text>
       <Text style={styles.subtitle}>
-        Choose how you'd like to reach us
+        {t('support.contact_subtitle')}
       </Text>
 
       {/* Contact Methods */}
@@ -153,10 +155,10 @@ const RiderContactSupportScreen = ({ navigation }) => {
       {/* Message Form */}
       {selectedMethod === 'chat' && (
         <View style={styles.formContainer}>
-          <Text style={styles.formTitle}>Send us a message</Text>
+          <Text style={styles.formTitle}>{t('support.send_message')}</Text>
           <TextInput
             style={styles.messageInput}
-            placeholder="Describe your issue or question..."
+            placeholder={t('support.message_placeholder')}
             placeholderTextColor="#999"
             multiline
             numberOfLines={6}
@@ -175,7 +177,7 @@ const RiderContactSupportScreen = ({ navigation }) => {
             ) : (
               <>
                 <Ionicons name="send" size={18} color="#fff" />
-                <Text style={styles.sendButtonText}>Send Message</Text>
+                <Text style={styles.sendButtonText}>{t('support.send_message')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -184,13 +186,13 @@ const RiderContactSupportScreen = ({ navigation }) => {
 
       {/* Quick Links */}
       <View style={styles.quickLinksContainer}>
-        <Text style={styles.quickLinksTitle}>Quick Links</Text>
+        <Text style={styles.quickLinksTitle}>{t('support.quick_links')}</Text>
         <TouchableOpacity
             style={styles.quickLink}
             onPress={() => navigation.navigate('RiderFAQ')}
         >
           <Ionicons name="help-circle-outline" size={20} color="#0066cc" />
-          <Text style={styles.quickLinkText}>View FAQ</Text>
+          <Text style={styles.quickLinkText}>{t('support.view_faq')}</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />
         </TouchableOpacity>
         <TouchableOpacity
@@ -198,7 +200,7 @@ const RiderContactSupportScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('TermsOfService')}
         >
           <Ionicons name="document-text-outline" size={20} color="#0066cc" />
-          <Text style={styles.quickLinkText}>Terms & Conditions</Text>
+          <Text style={styles.quickLinkText}>{t('profile.terms')}</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />
         </TouchableOpacity>
         <TouchableOpacity
@@ -206,7 +208,7 @@ const RiderContactSupportScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('PrivacyPolicy')}
         >
           <Ionicons name="shield-checkmark-outline" size={20} color="#0066cc" />
-          <Text style={styles.quickLinkText}>Privacy Policy</Text>
+          <Text style={styles.quickLinkText}>{t('profile.privacy')}</Text>
           <Ionicons name="chevron-forward" size={18} color="#ccc" />
         </TouchableOpacity>
       </View>
@@ -215,8 +217,7 @@ const RiderContactSupportScreen = ({ navigation }) => {
       <View style={styles.infoBox}>
         <Ionicons name="information-circle-outline" size={20} color="#0066cc" />
         <Text style={styles.infoText}>
-          Our support team typically responds within 2 hours during business
-          hours. For urgent issues, please call our 24/7 support line.
+          {t('support.support_info_box')}
         </Text>
       </View>
     </ScrollView>

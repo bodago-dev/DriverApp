@@ -12,8 +12,10 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getAuth } from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authService from '../../services/AuthService.js';
+import { useTranslation } from 'react-i18next';
 
 const NotificationSettingsScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const auth = getAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [notificationSettings, setNotificationSettings] = useState({
@@ -56,7 +58,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) {
-        Alert.alert('Error', 'User not authenticated');
+        Alert.alert(t('common.error'), t('delivery.history_auth_error'));
         return;
       }
 
@@ -79,7 +81,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
       });
     } catch (error) {
       console.error('Error updating notification settings:', error);
-      Alert.alert('Error', 'Failed to update notification settings');
+      Alert.alert(t('common.error'), t('settings.update_error'));
       // Revert the change
       loadNotificationSettings();
     }
@@ -96,47 +98,47 @@ const NotificationSettingsScreen = ({ navigation }) => {
   const notificationOptions = [
     {
       id: 'deliveryRequests',
-      title: 'Delivery Requests',
-      description: 'Get notified about new delivery requests',
+      title: t('settings.delivery_requests'),
+      description: t('settings.delivery_requests_desc'),
       icon: 'cube-outline',
     },
     {
       id: 'deliveryUpdates',
-      title: 'Delivery Updates',
-      description: 'Get notified about delivery status changes',
+      title: t('settings.delivery_updates'),
+      description: t('settings.delivery_updates_desc'),
       icon: 'sync-outline',
     },
     {
       id: 'earnings',
-      title: 'Earnings Alerts',
-      description: 'Get notified about your earnings and payouts',
+      title: t('settings.earnings_alerts'),
+      description: t('settings.earnings_alerts_desc'),
       icon: 'wallet-outline',
     },
     {
       id: 'promotions',
-      title: 'Promotions & Bonuses',
-      description: 'Receive special offers and bonus opportunities',
+      title: t('settings.promotions'),
+      description: t('settings.promotions_desc'),
       icon: 'gift-outline',
     },
     {
       id: 'supportMessages',
-      title: 'Support Messages',
-      description: 'Receive responses from our support team',
+      title: t('settings.support_messages'),
+      description: t('settings.support_messages_desc'),
       icon: 'chatbubble-outline',
     },
     {
       id: 'generalNotifications',
-      title: 'General Notifications',
-      description: 'Important app updates and announcements',
+      title: t('settings.general_notifications'),
+      description: t('settings.general_notifications_desc'),
       icon: 'notifications-outline',
     },
   ];
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Notification Settings</Text>
+      <Text style={styles.title}>{t('settings.notification_settings')}</Text>
       <Text style={styles.subtitle}>
-        Manage how you receive notifications from BodaGo
+        {t('settings.manage_notifications')}
       </Text>
 
       <View style={styles.settingsContainer}>
@@ -169,8 +171,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
       <View style={styles.infoContainer}>
         <Ionicons name="information-circle-outline" size={20} color="#0066cc" />
         <Text style={styles.infoText}>
-          You can change these settings at any time. Some notifications like
-          delivery requests cannot be disabled to ensure you don't miss earning opportunities.
+          {t('settings.notification_info')}
         </Text>
       </View>
     </ScrollView>

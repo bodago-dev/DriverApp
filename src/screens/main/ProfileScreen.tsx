@@ -38,7 +38,7 @@ const ProfileScreen = ({ navigation }) => {
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
-        Alert.alert(t('common.error'), 'Failed to load profile data');
+        Alert.alert(t('common.error'), t('profile.profile_load_error'));
       } finally {
         setLoading(false);
       }
@@ -52,7 +52,7 @@ const ProfileScreen = ({ navigation }) => {
       await signOut(auth);
     } catch (error) {
       console.error('Logout error:', error);
-      Alert.alert(t('common.error'), 'Failed to logout');
+      Alert.alert(t('common.error'), t('profile.logout_error'));
     }
   };
 

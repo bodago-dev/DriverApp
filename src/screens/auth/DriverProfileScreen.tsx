@@ -14,8 +14,10 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import authService from '../../services/AuthService';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
+import { useTranslation } from 'react-i18next';
 
 const DriverProfileScreen = ({ route, navigation }) => {
+  const { t } = useTranslation();
   const auth = getAuth();
   const user = auth.currentUser;
 
@@ -32,7 +34,7 @@ const DriverProfileScreen = ({ route, navigation }) => {
 // Update the handleSaveProfile function in DriverProfileScreen.tsx
 const handleSaveProfile = async () => {
     if (!firstName.trim() || !lastName.trim()) {
-      Alert.alert('Error', 'Please enter your first and last name');
+      Alert.alert(t('common.error'), t('auth.profile_name_error'));
       return;
     }
 
@@ -54,7 +56,7 @@ const handleSaveProfile = async () => {
           });
         }
       } catch (error) {
-        Alert.alert('Error', 'Failed to save profile');
+        Alert.alert(t('common.error'), t('auth.profile_save_error'));
     } finally {
       setIsLoading(false);
     }
@@ -65,9 +67,9 @@ const handleSaveProfile = async () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.title}>Driver Profile</Text>
+        <Text style={styles.title}>{t('onboarding.profile_title')}</Text>
         <Text style={styles.subtitle}>
-          Tell us about yourself
+          {t('onboarding.profile_subtitle')}
         </Text>
 
         <View style={styles.avatarContainer}>
@@ -76,33 +78,33 @@ const handleSaveProfile = async () => {
             style={styles.avatar}
           />
           <TouchableOpacity style={styles.editAvatarButton}>
-            <Text style={styles.editAvatarText}>Add Photo</Text>
+            <Text style={styles.editAvatarText}>{t('auth.profile_add_photo')}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.formContainer}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>First Name <Text style={styles.required}>*</Text></Text>
+            <Text style={styles.label}>{t('auth.profile_first_name')} <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your first name"
+              placeholder={t('auth.profile_first_name_placeholder')}
               value={firstName}
               onChangeText={setFirstName}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last Name <Text style={styles.required}>*</Text></Text>
+            <Text style={styles.label}>{t('auth.profile_last_name')} <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your last name"
+              placeholder={t('auth.profile_last_name_placeholder')}
               value={lastName}
               onChangeText={setLastName}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone Number</Text>
+            <Text style={styles.label}>{t('auth.profile_phone')}</Text>
             <TextInput
               style={[styles.input, styles.disabledInput]}
               value={`+255${phoneNumber}`}
@@ -111,10 +113,10 @@ const handleSaveProfile = async () => {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email (Optional)</Text>
+            <Text style={styles.label}>{t('auth.profile_email_optional')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your email address"
+              placeholder={t('auth.profile_email_placeholder')}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -123,10 +125,10 @@ const handleSaveProfile = async () => {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Home Address <Text style={styles.required}>*</Text></Text>
+            <Text style={styles.label}>{t('auth.profile_address')} <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your home address"
+              placeholder={t('auth.profile_address_placeholder')}
               value={address}
               onChangeText={setAddress}
             />
@@ -136,7 +138,7 @@ const handleSaveProfile = async () => {
         <View style={styles.infoContainer}>
           <Ionicons name="information-circle-outline" size={20} color="#0066cc" />
           <Text style={styles.infoText}>
-            Your information will be verified and kept secure according to our privacy policy.
+            {t('auth.profile_info_secure')}
           </Text>
         </View>
 
@@ -145,7 +147,7 @@ const handleSaveProfile = async () => {
           onPress={handleSaveProfile}
           disabled={isLoading}>
           <Text style={styles.buttonText}>
-            {isLoading ? 'Saving...' : 'Continue'}
+            {isLoading ? t('common.saving') : t('common.continue')}
           </Text>
         </TouchableOpacity>
       </ScrollView>

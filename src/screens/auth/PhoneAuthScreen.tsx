@@ -472,8 +472,9 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   languageSelector: {
-    marginTop: 20,
+    marginTop: 5,
     alignItems: 'center',
+    marginBottom: 15,
   },
   languageText: {
     fontSize: 14,

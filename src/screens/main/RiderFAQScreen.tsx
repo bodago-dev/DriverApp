@@ -7,82 +7,72 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 
 const RiderFAQScreen = ( { navigation } ) => {
+  const { t } = useTranslation();
   const [expandedId, setExpandedId] = useState(null);
 
   const faqs = [
     {
       id: 1,
-      question: 'How do I accept a delivery request?',
-      answer:
-        'On the app, tap on the button to \'Go Online\' and you will see a list of nearby delivery requests. If you want to accept a request, tap on the request and press the "Accept" button. You have a limited time to respond.',
+      question: t('faq.q1'),
+      answer: t('faq.a1'),
     },
     {
       id: 2,
-      question: 'How are my earnings calculated?',
-      answer:
-        'Your earnings are calculated based on the distance traveled, vehicle type used, and time taken. Each delivery has a base fare plus distance charges. You can view the estimated earnings before accepting a delivery.',
+      question: t('faq.q2'),
+      answer: t('faq.a2'),
     },
     {
       id: 3,
-      question: 'When do I get paid?',
-      answer:
-        'Payments are processed weekly, typically on Fridays. Your earnings are transferred to your registered mobile money account (M-Pesa, Mixx by Yas, or Airtel Money). You can view your payment history in the Earnings section.',
+      question: t('faq.q3'),
+      answer: t('faq.a3'),
     },
     {
       id: 4,
-      question: 'What are the vehicle requirements?',
-      answer:
-        'You need a valid vehicle (Bodaboda, Bajaji, or Guta) with proper registration and insurance. Your vehicle must be in good condition and pass our verification process. You will need to provide vehicle documents during onboarding.',
+      question: t('faq.q4'),
+      answer: t('faq.a4'),
     },
     {
       id: 5,
-      question: 'What documents do I need to provide?',
-      answer:
-        'You need to provide: valid national ID, driver\'s license, vehicle registration, insurance certificate, police clearance certificate and a clear profile photo. All documents must be valid and legible.',
+      question: t('faq.q5'),
+      answer: t('faq.a5'),
     },
     {
       id: 6,
-      question: 'How do I navigate to a delivery location?',
-      answer:
-        'Once you accept a delivery, the navigation screen will open automatically to navigate you to the pickup location. Once you arrive at the pickup location and pick up the package, you can tap the "Start Navigation" button to navigate to the drop-off location. You can use the in-app navigation or switch to Google Maps.',
+      question: t('faq.q6'),
+      answer: t('faq.a6'),
     },
     {
       id: 7,
-      question: 'What if I need to cancel a delivery?',
-      answer:
-        'You can cancel a delivery before you pickup the package at the pickup location. However, cancellations may affect your acceptance rating. Try to avoid cancellations as much as possible.',
+      question: t('faq.q7'),
+      answer: t('faq.a7'),
     },
     {
       id: 8,
-      question: 'How do I update my vehicle information?',
-      answer:
-        'You need to contact support for assistance. If you need to change your vehicle, you will need to provide new vehicle documents for verification.',
+      question: t('faq.q8'),
+      answer: t('faq.a8'),
     },
     {
       id: 9,
-      question: 'What should I do if a customer complains?',
-      answer:
-        'If a customer files a complaint, our support team will contact you to investigate. Always maintain professionalism and follow the delivery instructions carefully. Repeated complaints may affect your account status.',
+      question: t('faq.q9'),
+      answer: t('faq.a9'),
     },
     {
       id: 10,
-      question: 'How do I contact rider support?',
-      answer:
-        'You can reach our support team via phone at +255 712 863 555 or email at riders@bodago.co.tz. We are always available for urgent issues. Use the "Contact Support" option in the Help & Support section.',
+      question: t('faq.q10'),
+      answer: t('faq.a10'),
     },
     {
       id: 11,
-      question: 'Can I work part-time or full-time?',
-      answer:
-        'Yes! You can work whenever you want. Simply toggle your availability status in the app. When you are online, you will receive delivery requests. When offline, you won\'t receive any requests.',
+      question: t('faq.q11'),
+      answer: t('faq.a11'),
     },
     {
       id: 12,
-      question: 'What if I have an accident during delivery?',
-      answer:
-        'If you have an accident, immediately contact our rider support team at +255 712 863 555. Take photos of the damage and get the customer\'s contact information. Our team will guide you through the claims process.',
+      question: t('faq.q12'),
+      answer: t('faq.a12'),
     },
   ];
 
@@ -92,9 +82,9 @@ const RiderFAQScreen = ( { navigation } ) => {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Frequently Asked Questions</Text>
+      <Text style={styles.title}>{t('support.faq_title')}</Text>
       <Text style={styles.subtitle}>
-        Find answers to common questions about earning with BodaGo
+        {t('support.faq_subtitle')}
       </Text>
 
       <View style={styles.faqContainer}>
@@ -132,16 +122,16 @@ const RiderFAQScreen = ( { navigation } ) => {
       {/* Still Have Questions Section */}
       <View style={styles.contactSection}>
         <Ionicons name="help-circle-outline" size={32} color="#0066cc" />
-        <Text style={styles.contactTitle}>Still have questions?</Text>
+        <Text style={styles.contactTitle}>{t('support.still_have_questions')}</Text>
         <Text style={styles.contactText}>
-          Our support team is here to help. Contact us anytime.
+          {t('support.support_team_help')}
         </Text>
         <TouchableOpacity
             style={styles.contactButton}
             onPress={() => navigation.navigate('RiderContactSupport')}
             >
           <Ionicons name="chatbubble-outline" size={18} color="#fff" />
-          <Text style={styles.contactButtonText}>Contact Support</Text>
+          <Text style={styles.contactButtonText}>{t('support.contact_title')}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
