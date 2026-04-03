@@ -359,6 +359,14 @@ const NavigationScreen = ({ route, navigation }) => {
           deliveryId,
           (updatedDelivery) => {
             if (updatedDelivery && isMountedRef.current) {
+              // Check if the delivery was cancelled by the customer
+              if (updatedDelivery.status === 'cancelled' && deliveryData?.status !== 'cancelled') {
+                Alert.alert(
+                  'Delivery Cancelled',
+                  'This delivery has been cancelled by the customer.',
+                  [{ text: 'OK', onPress: () => navigation.goBack() }]
+                );
+              }
               setDeliveryData(updatedDelivery);
               setCurrentStep(updatedDelivery.status);
             }
@@ -535,10 +543,10 @@ const NavigationScreen = ({ route, navigation }) => {
               styles.stepItem,
               index === currentInstructionIndex && styles.activeStepItem
             ]}>
-              <Ionicons 
-                name={index === currentInstructionIndex ? "arrow-forward-circle" : "ellipse-outline"} 
-                size={18} 
-                color={index === currentInstructionIndex ? "#0066cc" : "#999"} 
+              <Ionicons
+                name={index === currentInstructionIndex ? "arrow-forward-circle" : "ellipse-outline"}
+                size={18}
+                color={index === currentInstructionIndex ? "#0066cc" : "#999"}
               />
               <View style={styles.stepTextContainer}>
                 <Text style={[
@@ -579,7 +587,7 @@ const NavigationScreen = ({ route, navigation }) => {
         onMapReady={() => {
           console.log('🗺️ Map fully ready');
           setMapReady(true);
-          
+
           // Initial fit
           if (driverLocation) {
             const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup' ? pickupCoords : dropoffCoords;
@@ -739,31 +747,40 @@ const NavigationScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Cancel Button */}
-          <TouchableOpacity
-            style={[styles.cancelButton, isLoading && styles.cancelButtonDisabled]}
-            onPress={() => {
-              Alert.alert(
-                'Cancel Delivery?',
-                'Are you sure you want to cancel this delivery? This may affect your rating.',
-                [
-                  { text: 'No, Continue', style: 'cancel' },
-                  {
-                    text: 'Yes, Cancel',
-                    style: 'destructive',
-                    onPress: async () => {
-                      const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
-                      await firestoreService.updateDeliveryStatus(deliveryId, 'cancelled', additionalData);
-                      navigation.goBack();
+          {/* Cancel Button or Special Instructions */}
+          {['accepted', 'arrived_pickup'].includes(currentStep) ? (
+            <TouchableOpacity
+              style={[styles.cancelButton, isLoading && styles.cancelButtonDisabled]}
+              onPress={() => {
+                Alert.alert(
+                  'Cancel Delivery?',
+                  'Are you sure you want to cancel this delivery? This may affect your rating.',
+                  [
+                    { text: 'No, Continue', style: 'cancel' },
+                    {
+                      text: 'Yes, Cancel',
+                      style: 'destructive',
+                      onPress: async () => {
+                        const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
+                        await firestoreService.updateDeliveryStatus(deliveryId, 'cancelled', additionalData);
+                        navigation.goBack();
+                      },
                     },
-                  },
-                ]
-              );
-            }}
-            disabled={isLoading}
-          >
-            <Text style={styles.cancelButtonText}>Cancel Delivery</Text>
-          </TouchableOpacity>
+                  ]
+                );
+              }}
+              disabled={isLoading}
+            >
+              <Text style={styles.cancelButtonText}>Cancel Delivery</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.specialInstructionsContainer}>
+              <Text style={styles.specialInstructionsTitle}>Special Instructions</Text>
+              <Text style={styles.specialInstructionsText}>
+                {deliveryData.packageDetails?.specialInstructions || 'No special instructions provided.'}
+              </Text>
+            </View>
+          )}
         </ScrollView>
 
         {/* Fixed Action Button */}
@@ -1022,6 +1039,25 @@ const styles = StyleSheet.create({
   },
   cancelButtonDisabled: {
     opacity: 0.5,
+  },
+  specialInstructionsContainer: {
+    backgroundColor: '#fff9e6',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 15,
+    borderLeftWidth: 3,
+    borderLeftColor: '#ffc107',
+  },
+  specialInstructionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#856404',
+    marginBottom: 5,
+  },
+  specialInstructionsText: {
+    fontSize: 14,
+    color: '#856404',
+    fontStyle: 'italic',
   },
   actionButton: {
     position: 'absolute',

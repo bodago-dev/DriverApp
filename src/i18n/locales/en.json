@@ -213,7 +213,14 @@
     "net_rider_earnings": "Net Rider Earnings",
     "recent_deliveries": "Recent Deliveries",
     "fetch_error": "Failed to fetch deliveries",
-    "unexpected_error": "An unexpected error occurred while fetching earnings data."
+    "unexpected_error": "An unexpected error occurred while fetching earnings data.",
+    "net_earnings_label": "Net Earnings",
+    "deliveries_label": "Deliveries",
+    "total_fare_label": "Total Fare",
+    "service_fee_label": "Service Fee (18%)",
+    "loading_deliveries": "Loading deliveries...",
+    "no_deliveries_yet": "You haven't completed any deliveries yet.",
+    "driver_not_authenticated": "Driver not authenticated. Please log in."
   },
   "settings": {
     "title": "Settings",

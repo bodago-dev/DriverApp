@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -16,6 +17,7 @@ import authService from '../../services/AuthService';
 import { useFocusEffect } from '@react-navigation/native';
 
 const EarningsScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('today');
@@ -134,11 +136,11 @@ const EarningsScreen = ({ navigation }) => {
         });
         setRecentDeliveries(sortedDeliveries.slice(0, 10));
       } else {
-        Alert.alert('Error', deliveriesResult.error || 'Failed to fetch deliveries');
+        Alert.alert(t('common.error'), deliveriesResult.error || t('earnings.fetch_error'));
       }
     } catch (error) {
       console.error('Error fetching earnings data:', error);
-      Alert.alert('Error', 'An unexpected error occurred while fetching earnings data.');
+      Alert.alert(t('common.error'), t('earnings.unexpected_error'));
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -158,7 +160,7 @@ const EarningsScreen = ({ navigation }) => {
       setDriverId(currentUser.uid);
     } else {
       setIsLoading(false);
-      Alert.alert('Error', 'Driver not authenticated. Please log in.');
+      Alert.alert(t('common.error'), t('earnings.driver_not_authenticated'));
       // Optionally navigate to login screen
       // navigation.navigate('AuthStack');
     }
@@ -207,7 +209,7 @@ const EarningsScreen = ({ navigation }) => {
         <Text style={styles.deliveryItemId}>{item.id}</Text>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={styles.deliveryItemAmount}>{formatPrice(item.fareDetails?.total - (item.fareDetails?.serviceFee || 0))}</Text>
-          <Text style={{ fontSize: 10, color: '#999' }}>Net Earnings</Text>
+          <Text style={{ fontSize: 10, color: '#999' }}>{t('earnings.net_earnings_label')}</Text>
         </View>
       </View>
 
@@ -245,28 +247,28 @@ const EarningsScreen = ({ navigation }) => {
           style={[styles.periodTab, selectedPeriod === 'today' && styles.activePeriodTab]}
           onPress={() => setSelectedPeriod('today')}>
           <Text style={[styles.periodTabText, selectedPeriod === 'today' && styles.activePeriodTabText]}>
-            Today
+            {t('earnings.today')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.periodTab, selectedPeriod === 'week' && styles.activePeriodTab]}
           onPress={() => setSelectedPeriod('week')}>
           <Text style={[styles.periodTabText, selectedPeriod === 'week' && styles.activePeriodTabText]}>
-            Past 7 Days
+            {t('earnings.past_7_days')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.periodTab, selectedPeriod === 'month' && styles.activePeriodTab]}
           onPress={() => setSelectedPeriod('month')}>
           <Text style={[styles.periodTabText, selectedPeriod === 'month' && styles.activePeriodTabText]}>
-            This Month
+            {t('earnings.this_month')}
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Earnings Summary */}
       <View style={styles.earningsSummary}>
-        <Text style={styles.totalEarningsLabel}>Net Rider Earnings</Text>
+        <Text style={styles.totalEarningsLabel}>{t('earnings.net_rider_earnings')}</Text>
         <Text style={styles.totalEarningsValue}>
           {formatPrice(getCurrentPeriodData().riderEarnings)}
         </Text>
@@ -275,17 +277,17 @@ const EarningsScreen = ({ navigation }) => {
           <View style={styles.statItem}>
             <Ionicons name="cube-outline" size={20} color="#0066cc" />
             <Text style={styles.statValue}>{getCurrentPeriodData().deliveries}</Text>
-            <Text style={styles.statLabel}>Deliveries</Text>
+            <Text style={styles.statLabel}>{t('earnings.deliveries_label')}</Text>
           </View>
           <View style={styles.statItem}>
             <Ionicons name="cash-outline" size={20} color="#4caf50" />
             <Text style={styles.statValue}>{formatPrice(getCurrentPeriodData().total)}</Text>
-            <Text style={styles.statLabel}>Total Fare</Text>
+            <Text style={styles.statLabel}>{t('earnings.total_fare_label')}</Text>
           </View>
           <View style={styles.statItem}>
             <Ionicons name="construct-outline" size={20} color="#ff6b6b" />
             <Text style={styles.statValue}>{formatPrice(getCurrentPeriodData().serviceFees)}</Text>
-            <Text style={styles.statLabel}>Service Fee (18%)</Text>
+            <Text style={styles.statLabel}>{t('earnings.service_fee_label')}</Text>
           </View>
         </View>
       </View>
@@ -301,18 +303,18 @@ const EarningsScreen = ({ navigation }) => {
           />
         }
       >
-        <Text style={styles.sectionTitle}>Recent Deliveries</Text>
+        <Text style={styles.sectionTitle}>{t('earnings.recent_deliveries')}</Text>
 
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#0066cc" />
-            <Text style={styles.loadingText}>Loading deliveries...</Text>
+            <Text style={styles.loadingText}>{t('earnings.loading_deliveries')}</Text>
           </View>
         ) : recentDeliveries.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="cube-outline" size={60} color="#ccc" />
-            <Text style={styles.emptyText}>No deliveries found</Text>
-            <Text style={styles.emptySubtext}>You haven't completed any deliveries yet.</Text>
+            <Text style={styles.emptyText}>{t('delivery.no_deliveries_found')}</Text>
+            <Text style={styles.emptySubtext}>{t('earnings.no_deliveries_yet')}</Text>
           </View>
         ) : (
           <FlatList

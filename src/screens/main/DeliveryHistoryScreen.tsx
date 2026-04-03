@@ -48,9 +48,7 @@ const DeliveryHistoryScreen = ({ navigation }) => {
             ['accepted', 'arrived_pickup', 'picked_up', 'in_transit', 'arrived_dropoff'].includes(delivery.status)
           );
         } else if (activeTab === 'completed') {
-          fetchedDeliveries = fetchedDeliveries.filter(delivery =>
-            ['delivered', 'cancelled'].includes(delivery.status)
-          );
+          fetchedDeliveries = fetchedDeliveries.filter(delivery => delivery.status === 'delivered');
         }
 
         // Sort by date (newest first)

@@ -17,7 +17,7 @@
     "no_data": "Hakuna data iliyopatikana",
     "guest": "Mgeni",
     "online": "Uko Hewani",
-    "offline": "Huko Hewani",
+    "offline": "Ingia Hewani",
     "warning": "Onyo",
     "close": "Funga",
     "submit": "Wasilisha",
@@ -146,7 +146,7 @@
     "status_picked_up": "Mzigo Umechukuliwa",
     "status_in_transit": "Njia ya Kupeleka",
     "status_arrived_dropoff": "Amefika pa Kupeleka",
-    "status_delivered": "Imewasilishwa",
+    "status_delivered": "Imefikishwa",
     "navigation": "Maelekezo ya Njia",
     "call_customer": "Piga Simu kwa Mteja",
     "message_customer": "Tuma Ujumbe",
@@ -213,7 +213,14 @@
     "net_rider_earnings": "Mapato Halisi ya Dereva",
     "recent_deliveries": "Mizigo ya Hivi Karibuni",
     "fetch_error": "Imeshindwa kupata mizigo",
-    "unexpected_error": "Hitilafu isiyotarajiwa imetokea wakati wa kupata data ya mapato."
+    "unexpected_error": "Hitilafu isiyotarajiwa imetokea wakati wa kupata data ya mapato.",
+    "net_earnings_label": "Mapato Halisi",
+    "deliveries_label": "Mizigo",
+    "total_fare_label": "Gharama Kamili",
+    "service_fee_label": "Ada ya Huduma (18%)",
+    "loading_deliveries": "Inapakia mizigo...",
+    "no_deliveries_yet": "Bado hujakamilisha mizigo yoyote.",
+    "driver_not_authenticated": "Dereva hajathibitishwa. Tafadhali ingia."
   },
   "settings": {
     "title": "Mipangilio",

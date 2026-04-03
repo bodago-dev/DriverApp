@@ -292,6 +292,24 @@ class FirestoreService {
         });
       }
 
+      // 3. If status is cancelled, update payment status if it's a cash payment and currently pending
+      if (status === 'cancelled') {
+        const paymentsQuery = query(
+          collection(this.db, 'payments'),
+          where('deliveryId', '==', deliveryId),
+          where('paymentMethod', '==', 'cash'),
+          where('status', '==', 'pending')
+        );
+
+        const paymentsSnapshot = await getDocs(paymentsQuery);
+        paymentsSnapshot.forEach((paymentDoc) => {
+          batch.update(doc(this.db, 'payments', paymentDoc.id), {
+            status: 'cancelled',
+            updatedAt: serverTimestamp()
+          });
+        });
+      }
+
       await batch.commit();
       return { success: true };
     } catch (error) {
