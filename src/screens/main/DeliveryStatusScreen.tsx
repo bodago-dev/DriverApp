@@ -300,6 +300,16 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
       )}
 
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Special Instructions</Text>
+        <View style={styles.specialInstructionsContainer}>
+          <Text style={styles.specialInstructionsTitle}>Instructions from Customer</Text>
+          <Text style={styles.specialInstructionsText}>
+            {request.packageDetails?.specialInstructions || 'No special instructions provided.'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Delivery Summary</Text>
 
         <View style={styles.summaryItem}>
@@ -524,6 +534,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginLeft: 8,
+  },
+  specialInstructionsContainer: {
+    backgroundColor: '#fff9e6',
+    padding: 15,
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#ffc107',
+  },
+  specialInstructionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#856404',
+    marginBottom: 5,
+  },
+  specialInstructionsText: {
+    fontSize: 14,
+    color: '#856404',
+    fontStyle: 'italic',
   },
 });
 

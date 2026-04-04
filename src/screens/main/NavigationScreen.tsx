@@ -421,39 +421,59 @@ const NavigationScreen = ({ route, navigation }) => {
         newStatus = 'arrived_dropoff';
         navigateToCompletion = true;
         break;
+      case 'arrived_dropoff':
+        navigateToCompletion = true;
+        break;
       case 'delivered':
       default:
         break;
     }
 
     if (newStatus) {
-        try {
-          const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
-          const result = await firestoreService.updateDeliveryStatus(deliveryId, newStatus, additionalData);
+      try {
+        const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
+        const result = await firestoreService.updateDeliveryStatus(deliveryId, newStatus, additionalData);
 
-          if (!result.success) {
-            Alert.alert('Error', result.error || 'Failed to update delivery status.');
-          } else if (navigateToCompletion && isMountedRef.current) {
-            // Navigate to DeliveryStatusScreen when arriving at dropoff
-            navigation.replace('DeliveryStatus', {
-              deliveryId,
-              request: {
-                requestId: deliveryData.requestId,
-                pickupAddress: deliveryData.pickupLocation?.address || deliveryRequest?.pickupAddress || 'N/A',
-                dropoffAddress: deliveryData.dropoffLocation?.address || deliveryRequest?.dropoffAddress || 'N/A',
-                packageSize: deliveryData.packageDetails?.size || deliveryRequest?.packageSize || 'medium',
-                distance: deliveryData.distance || deliveryRequest?.distance || 'N/A',
-                fare: deliveryData.fareDetails?.total || deliveryRequest?.fare || 0,
-                paymentMethod: deliveryData.paymentMethod || deliveryRequest?.paymentMethod || 'M-Pesa (Paid)',
-                phoneNumber: customerInfo?.phoneNumber || 'N/A',
-              }
-            });
-          }
-        } catch (error) {
-          console.error('Error updating status:', error);
-          Alert.alert('Error', 'Failed to update delivery status.');
+        if (!result.success) {
+          Alert.alert('Error', result.error || 'Failed to update delivery status.');
+        } else if (navigateToCompletion && isMountedRef.current) {
+          // Navigate to DeliveryStatusScreen when arriving at dropoff
+          navigation.replace('DeliveryStatus', {
+            deliveryId,
+            request: {
+              requestId: deliveryData.requestId,
+              pickupAddress: deliveryData.pickupLocation?.address || deliveryRequest?.pickupAddress || 'N/A',
+              dropoffAddress: deliveryData.dropoffLocation?.address || deliveryRequest?.dropoffAddress || 'N/A',
+              packageSize: deliveryData.packageDetails?.size || deliveryRequest?.packageSize || 'medium',
+              distance: deliveryData.distance || deliveryRequest?.distance || 'N/A',
+              fare: deliveryData.fareDetails?.total || deliveryRequest?.fare || 0,
+              paymentMethod: deliveryData.paymentMethod || deliveryRequest?.paymentMethod || 'M-Pesa (Paid)',
+              phoneNumber: customerInfo?.phoneNumber || 'N/A',
+              packageDetails: deliveryData.packageDetails,
+            }
+          });
         }
+      } catch (error) {
+        console.error('Error updating status:', error);
+        Alert.alert('Error', 'Failed to update delivery status.');
       }
+    } else if (navigateToCompletion && isMountedRef.current) {
+      // Already at dropoff, just navigate
+      navigation.replace('DeliveryStatus', {
+        deliveryId,
+        request: {
+          requestId: deliveryData.requestId,
+          pickupAddress: deliveryData.pickupLocation?.address || deliveryRequest?.pickupAddress || 'N/A',
+          dropoffAddress: deliveryData.dropoffLocation?.address || deliveryRequest?.dropoffAddress || 'N/A',
+          packageSize: deliveryData.packageDetails?.size || deliveryRequest?.packageSize || 'medium',
+          distance: deliveryData.distance || deliveryRequest?.distance || 'N/A',
+          fare: deliveryData.fareDetails?.total || deliveryRequest?.fare || 0,
+          paymentMethod: deliveryData.paymentMethod || deliveryRequest?.paymentMethod || 'M-Pesa (Paid)',
+          phoneNumber: customerInfo?.phoneNumber || 'N/A',
+          packageDetails: deliveryData.packageDetails,
+        }
+      });
+    }
 
       if (isMountedRef.current) {
         setIsLoading(false);
