@@ -8,6 +8,7 @@ import {
   Image,
   Alert,
   Linking,
+  TextInput,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import firestoreService from '../../services/FirestoreService';
@@ -18,7 +19,8 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [deliveryCompleted, setDeliveryCompleted] = useState(false);
   const [photoTaken, setPhotoTaken] = useState(false);
-  const [signatureCollected, setSignatureCollected] = useState(false);
+  const [pinEntered, setPinEntered] = useState('');
+  const [pinVerified, setPinVerified] = useState(false);
   const [cashPaymentReceived, setCashPaymentReceived] = useState(false);
 
   const handleTakePhoto = () => {
@@ -45,28 +47,32 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     );
   };
 
-  const handleCollectSignature = () => {
-    // In a real app, this would open a signature pad
-    // For demo purposes, we'll simulate collecting a signature
-    Alert.alert(
-      'Collect Signature',
-      'Ask the recipient to sign on the screen',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Collect Signature',
-          onPress: () => {
-            // Simulate signature collection
-            setTimeout(() => {
-              setSignatureCollected(true);
-            }, 1000);
-          },
-        },
-      ]
-    );
+  const handleVerifyPin = async () => {
+    if (pinEntered.length < 4) {
+      Alert.alert('Error', 'Please enter a 4-digit PIN');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const deliveryResult = await firestoreService.getDelivery(deliveryId);
+      if (deliveryResult.success && deliveryResult.delivery) {
+        const correctPin = deliveryResult.delivery.deliveryPin;
+        if (pinEntered === correctPin) {
+          setPinVerified(true);
+          Alert.alert('Success', 'PIN Verified Successfully');
+        } else {
+          Alert.alert('Error', 'Invalid PIN. Please try again.');
+        }
+      } else {
+        Alert.alert('Error', 'Failed to fetch delivery details for verification.');
+      }
+    } catch (error) {
+      console.error('Error verifying PIN:', error);
+      Alert.alert('Error', 'An unexpected error occurred during verification.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCompleteDelivery = async () => {
@@ -106,10 +112,10 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
 
   const completeDeliveryProcess = async (isCashPayment: boolean) => {
     // Check required steps
-    if (!photoTaken || !signatureCollected) {
+    if (!photoTaken || !pinVerified) {
       Alert.alert(
         'Incomplete Delivery',
-        'Please take a photo and collect signature to complete the delivery.',
+        'Please take a photo and verify the delivery PIN to complete the delivery.',
       );
       return;
     }
@@ -258,28 +264,41 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
 
         <View style={styles.checklistItem}>
           <View style={styles.checklistIconContainer}>
-            {signatureCollected ? (
+            {pinVerified ? (
               <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
             ) : (
               <Ionicons name="ellipse-outline" size={24} color="#ccc" />
             )}
           </View>
           <View style={styles.checklistTextContainer}>
-            <Text style={styles.checklistTitle}>Collect Signature</Text>
+            <Text style={styles.checklistTitle}>Verify Delivery PIN</Text>
             <Text style={styles.checklistDescription}>
-              Ask the recipient to sign to confirm delivery
+              Enter the 4-digit PIN provided by the recipient
             </Text>
+            {!pinVerified && (
+              <View style={styles.pinInputContainer}>
+                <TextInput
+                  style={styles.pinInput}
+                  placeholder="4-digit PIN"
+                  value={pinEntered}
+                  onChangeText={setPinEntered}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  secureTextEntry
+                />
+                <TouchableOpacity
+                  style={styles.verifyButton}
+                  onPress={handleVerifyPin}
+                  disabled={isLoading || pinEntered.length < 4}
+                >
+                  <Text style={styles.verifyButtonText}>Verify</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {pinVerified && (
+              <Text style={styles.verifiedText}>PIN Verified Successfully</Text>
+            )}
           </View>
-          <TouchableOpacity
-            style={[
-              styles.checklistButton,
-              signatureCollected && styles.checklistButtonCompleted
-            ]}
-            onPress={handleCollectSignature}>
-            <Text style={styles.checklistButtonText}>
-              {signatureCollected ? 'Recollect' : 'Collect'}
-            </Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -462,6 +481,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#0066cc',
     fontWeight: '500',
+  },
+  pinInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  pinInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    width: 100,
+    marginRight: 10,
+    fontSize: 16,
+    textAlign: 'center',
+    letterSpacing: 2,
+    color: '#333',
+    backgroundColor: '#fff',
+  },
+  verifyButton: {
+    backgroundColor: '#0066cc',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  verifyButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  verifiedText: {
+    color: '#4caf50',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 5,
   },
   summaryItem: {
     flexDirection: 'row',
