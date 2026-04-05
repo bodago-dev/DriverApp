@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,10 @@ import {
   Alert,
   Linking,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import firestoreService from '../../services/FirestoreService';
@@ -22,6 +26,46 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
   const [pinEntered, setPinEntered] = useState('');
   const [pinVerified, setPinVerified] = useState(false);
   const [cashPaymentReceived, setCashPaymentReceived] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  const scrollViewRef = useRef(null);
+  const pinInputRef = useRef(null);
+  const pinSectionRef = useRef(null);
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      () => setKeyboardVisible(true)
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
+
+  const scrollToPinInput = () => {
+    // Small delay to ensure keyboard is open and layout is calculated
+    setTimeout(() => {
+      if (pinSectionRef.current && scrollViewRef.current) {
+        pinSectionRef.current.measureLayout(
+          scrollViewRef.current.getScrollableNode(),
+          (x, y) => {
+            scrollViewRef.current.scrollTo({ y: y - 100, animated: true });
+          },
+          (error) => {
+            console.log('Error measuring layout:', error);
+            // Fallback: scroll to a reasonable position
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        );
+      }
+    }, 100);
+  };
 
   const handleTakePhoto = () => {
     // In a real app, this would open the camera
@@ -61,8 +105,13 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
         if (pinEntered === correctPin) {
           setPinVerified(true);
           Alert.alert('Success', 'PIN Verified Successfully');
+          // Dismiss keyboard after successful verification
+          Keyboard.dismiss();
         } else {
           Alert.alert('Error', 'Invalid PIN. Please try again.');
+          setPinEntered(''); // Clear the invalid PIN
+          // Focus back on PIN input
+          pinInputRef.current?.focus();
         }
       } else {
         Alert.alert('Error', 'Failed to fetch delivery details for verification.');
@@ -208,179 +257,207 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Delivery Status</Text>
-        <Text style={styles.orderId}>Order #{deliveryId}</Text>
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.statusContainer}>
-          <View style={styles.statusIconContainer}>
-            <Ionicons name="checkmark-circle" size={40} color="#4caf50" />
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.container}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            paddingBottom: keyboardVisible ? 100 : 20,
+          }}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Delivery Status</Text>
+            <Text style={styles.orderId}>Order #{deliveryId}</Text>
           </View>
-          <View style={styles.statusTextContainer}>
-            <Text style={styles.statusTitle}>Arrived at Destination</Text>
-            <Text style={styles.statusDescription}>
-              You have arrived at the delivery location. Complete the delivery by following the steps below.
-            </Text>
-          </View>
-        </View>
-      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Delivery Location</Text>
-        <Text style={styles.locationText}>{request.dropoffAddress}</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Delivery Checklist</Text>
-
-        <View style={styles.checklistItem}>
-          <View style={styles.checklistIconContainer}>
-            {photoTaken ? (
-              <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
-            ) : (
-              <Ionicons name="ellipse-outline" size={24} color="#ccc" />
-            )}
+          <View style={styles.card}>
+            <View style={styles.statusContainer}>
+              <View style={styles.statusIconContainer}>
+                <Ionicons name="checkmark-circle" size={40} color="#4caf50" />
+              </View>
+              <View style={styles.statusTextContainer}>
+                <Text style={styles.statusTitle}>Arrived at Destination</Text>
+                <Text style={styles.statusDescription}>
+                  You have arrived at the delivery location. Complete the delivery by following the steps below.
+                </Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.checklistTextContainer}>
-            <Text style={styles.checklistTitle}>Take Delivery Photo</Text>
-            <Text style={styles.checklistDescription}>
-              Take a photo of the package at the delivery location
-            </Text>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Delivery Location</Text>
+            <Text style={styles.locationText}>{request.dropoffAddress}</Text>
           </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Delivery Checklist</Text>
+
+            <View style={styles.checklistItem}>
+              <View style={styles.checklistIconContainer}>
+                {photoTaken ? (
+                  <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
+                ) : (
+                  <Ionicons name="ellipse-outline" size={24} color="#ccc" />
+                )}
+              </View>
+              <View style={styles.checklistTextContainer}>
+                <Text style={styles.checklistTitle}>Take Delivery Photo</Text>
+                <Text style={styles.checklistDescription}>
+                  Take a photo of the package at the delivery location
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.checklistButton,
+                  photoTaken && styles.checklistButtonCompleted
+                ]}
+                onPress={handleTakePhoto}>
+                <Text style={styles.checklistButtonText}>
+                  {photoTaken ? 'Retake' : 'Take Photo'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View
+              style={styles.checklistItem}
+              ref={pinSectionRef}
+            >
+              <View style={styles.checklistIconContainer}>
+                {pinVerified ? (
+                  <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
+                ) : (
+                  <Ionicons name="ellipse-outline" size={24} color="#ccc" />
+                )}
+              </View>
+              <View style={styles.checklistTextContainer}>
+                <Text style={styles.checklistTitle}>Verify Delivery PIN</Text>
+                <Text style={styles.checklistDescription}>
+                  Enter the 4-digit PIN provided by the recipient
+                </Text>
+                {!pinVerified && (
+                  <View style={styles.pinInputContainer}>
+                    <TextInput
+                      ref={pinInputRef}
+                      style={styles.pinInput}
+                      placeholder="PIN"
+                      placeholderTextColor="#999"
+                      value={pinEntered}
+                      onChangeText={setPinEntered}
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      secureTextEntry
+                      onFocus={scrollToPinInput}
+                      onSubmitEditing={handleVerifyPin}
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity
+                      style={styles.verifyButton}
+                      onPress={handleVerifyPin}
+                      disabled={isLoading || pinEntered.length < 4}
+                    >
+                      <Text style={styles.verifyButtonText}>Verify</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {pinVerified && (
+                  <Text style={styles.verifiedText}>PIN Verified Successfully</Text>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {request.paymentMethod === 'cash' && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Cash Payment</Text>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Amount to Collect</Text>
+                <Text style={styles.summaryValue}>{formatPrice(request.fare)}</Text>
+              </View>
+              <View style={styles.paymentNote}>
+                <Ionicons name="information-circle-outline" size={16} color="#ff9800" />
+                <Text style={styles.paymentNoteText}>
+                  You'll confirm cash payment when completing delivery
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Special Instructions - Only show if there are instructions */}
+          {request.packageDetails?.specialInstructions &&
+           request.packageDetails.specialInstructions.trim() !== '' &&
+           request.packageDetails.specialInstructions !== 'No special instructions provided.' && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Special Instructions</Text>
+              <View style={styles.specialInstructionsContainer}>
+                <Text style={styles.specialInstructionsTitle}>Instructions from Customer</Text>
+                <Text style={styles.specialInstructionsText}>
+                  {request.packageDetails.specialInstructions}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Delivery Summary</Text>
+
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Package Size</Text>
+              <Text style={styles.summaryValue}>
+                {request.packageSize === 'small' ? 'Small' :
+                 request.packageSize === 'medium' ? 'Medium' : 'Large'}
+              </Text>
+            </View>
+
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Distance</Text>
+              <Text style={styles.summaryValue}>{request.distance} km</Text>
+            </View>
+
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Delivery Fare</Text>
+              <Text style={styles.summaryValue}>{formatPrice(request.fare)}</Text>
+            </View>
+
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Payment Method</Text>
+              <Text style={styles.summaryValue}>
+                {request.paymentMethod === 'cash' ? 'Cash on Delivery' : request.paymentMethod}
+              </Text>
+            </View>
+          </View>
+
           <TouchableOpacity
             style={[
-              styles.checklistButton,
-              photoTaken && styles.checklistButtonCompleted
+              styles.completeButton,
+              (isLoading || deliveryCompleted) && styles.completeButtonDisabled,
+              request.paymentMethod === 'cash' && styles.completeButtonCash
             ]}
-            onPress={handleTakePhoto}>
-            <Text style={styles.checklistButtonText}>
-              {photoTaken ? 'Retake' : 'Take Photo'}
+            onPress={handleCompleteDelivery}
+            disabled={isLoading || deliveryCompleted}>
+            <Text style={styles.completeButtonText}>
+              {getCompleteButtonText()}
             </Text>
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.checklistItem}>
-          <View style={styles.checklistIconContainer}>
-            {pinVerified ? (
-              <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
-            ) : (
-              <Ionicons name="ellipse-outline" size={24} color="#ccc" />
-            )}
+          <View style={styles.contactContainer}>
+            <TouchableOpacity style={styles.contactButton} onPress={handleCallCustomer}>
+              <Ionicons name="call" size={20} color="#0066cc" />
+              <Text style={styles.contactButtonText}>Call Customer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.contactButton} onPress={handleMessageCustomer}>
+              <Ionicons name="chatbubble" size={20} color="#0066cc" />
+              <Text style={styles.contactButtonText}>Message</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.checklistTextContainer}>
-            <Text style={styles.checklistTitle}>Verify Delivery PIN</Text>
-            <Text style={styles.checklistDescription}>
-              Enter the 4-digit PIN provided by the recipient
-            </Text>
-            {!pinVerified && (
-              <View style={styles.pinInputContainer}>
-                <TextInput
-                  style={styles.pinInput}
-                  placeholder="4-digit PIN"
-                  value={pinEntered}
-                  onChangeText={setPinEntered}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  secureTextEntry
-                />
-                <TouchableOpacity
-                  style={styles.verifyButton}
-                  onPress={handleVerifyPin}
-                  disabled={isLoading || pinEntered.length < 4}
-                >
-                  <Text style={styles.verifyButtonText}>Verify</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {pinVerified && (
-              <Text style={styles.verifiedText}>PIN Verified Successfully</Text>
-            )}
-          </View>
-        </View>
-      </View>
-
-      {request.paymentMethod === 'cash' && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Cash Payment</Text>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Amount to Collect</Text>
-            <Text style={styles.summaryValue}>{formatPrice(request.fare)}</Text>
-          </View>
-          <View style={styles.paymentNote}>
-            <Ionicons name="information-circle-outline" size={16} color="#ff9800" />
-            <Text style={styles.paymentNoteText}>
-              You'll confirm cash payment when completing delivery
-            </Text>
-          </View>
-        </View>
-      )}
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Special Instructions</Text>
-        <View style={styles.specialInstructionsContainer}>
-          <Text style={styles.specialInstructionsTitle}>Instructions from Customer</Text>
-          <Text style={styles.specialInstructionsText}>
-            {request.packageDetails?.specialInstructions || 'No special instructions provided.'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Delivery Summary</Text>
-
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Package Size</Text>
-          <Text style={styles.summaryValue}>
-            {request.packageSize === 'small' ? 'Small' :
-             request.packageSize === 'medium' ? 'Medium' : 'Large'}
-          </Text>
-        </View>
-
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Distance</Text>
-          <Text style={styles.summaryValue}>{request.distance} km</Text>
-        </View>
-
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Delivery Fare</Text>
-          <Text style={styles.summaryValue}>{formatPrice(request.fare)}</Text>
-        </View>
-
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Payment Method</Text>
-          <Text style={styles.summaryValue}>
-            {request.paymentMethod === 'cash' ? 'Cash on Delivery' : request.paymentMethod}
-          </Text>
-        </View>
-      </View>
-
-      <TouchableOpacity
-        style={[
-          styles.completeButton,
-          (isLoading || deliveryCompleted) && styles.completeButtonDisabled,
-          request.paymentMethod === 'cash' && styles.completeButtonCash
-        ]}
-        onPress={handleCompleteDelivery}
-        disabled={isLoading || deliveryCompleted}>
-        <Text style={styles.completeButtonText}>
-          {getCompleteButtonText()}
-        </Text>
-      </TouchableOpacity>
-
-      <View style={styles.contactContainer}>
-        <TouchableOpacity style={styles.contactButton} onPress={handleCallCustomer}>
-          <Ionicons name="call" size={20} color="#0066cc" />
-          <Text style={styles.contactButtonText}>Call Customer</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.contactButton} onPress={handleMessageCustomer}>
-          <Ionicons name="chatbubble" size={20} color="#0066cc" />
-          <Text style={styles.contactButtonText}>Message</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -492,7 +569,7 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 4,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 8,
     width: 100,
     marginRight: 10,
     fontSize: 16,
