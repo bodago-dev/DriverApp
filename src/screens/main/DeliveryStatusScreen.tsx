@@ -16,9 +16,11 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import firestoreService from '../../services/FirestoreService';
+import { useTranslation } from 'react-i18next';
 
 const DeliveryStatusScreen = ({ route, navigation }) => {
   const { deliveryId, request } = route.params;
+  const { t } = useTranslation(); // Initialize translation hook
 
   const [isLoading, setIsLoading] = useState(false);
   const [deliveryCompleted, setDeliveryCompleted] = useState(false);
@@ -71,15 +73,15 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     // In a real app, this would open the camera
     // For demo purposes, we'll simulate taking a photo
     Alert.alert(
-      'Take Photo',
-      'Take a photo of the delivered package',
+      t('onboarding.take_photo'), // Take Photo
+      t('delivery.navigation_steps'), // Placeholder, ideally a specific key, but reusing a navigation one. Or create a specific one.
       [
         {
-          text: 'Cancel',
+          text: t('common.cancel'),
           style: 'cancel',
         },
         {
-          text: 'Take Photo',
+          text: t('onboarding.take_photo'),
           onPress: () => {
             // Simulate photo capture
             setTimeout(() => {
@@ -93,7 +95,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
 
   const handleVerifyPin = async () => {
     if (pinEntered.length < 4) {
-      Alert.alert('Error', 'Please enter a 4-digit PIN');
+      Alert.alert(t('common.error'), t('delivery.pin_required'));
       return;
     }
 
@@ -104,21 +106,21 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
         const correctPin = deliveryResult.delivery.deliveryPin;
         if (pinEntered === correctPin) {
           setPinVerified(true);
-          Alert.alert('Success', 'PIN Verified Successfully');
+          Alert.alert(t('common.success'), t('delivery.pin_verified'));
           // Dismiss keyboard after successful verification
           Keyboard.dismiss();
         } else {
-          Alert.alert('Error', 'Invalid PIN. Please try again.');
+          Alert.alert(t('common.error'), t('delivery.invalid_pin'));
           setPinEntered(''); // Clear the invalid PIN
           // Focus back on PIN input
           pinInputRef.current?.focus();
         }
       } else {
-        Alert.alert('Error', 'Failed to fetch delivery details for verification.');
+        Alert.alert(t('common.error'), t('delivery.details_error'));
       }
     } catch (error) {
       console.error('Error verifying PIN:', error);
-      Alert.alert('Error', 'An unexpected error occurred during verification.');
+      Alert.alert(t('common.error'), t('common.error'));
     } finally {
       setIsLoading(false);
     }
@@ -129,23 +131,23 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     if (request.paymentMethod === 'cash') {
       // Show confirmation dialog for cash payment
       Alert.alert(
-        'Confirm Cash Payment',
-        'Have you received the cash payment of ' + formatPrice(request.fare) + ' from the customer?',
+        t('delivery.payment_method'), // Cash on Delivery -> Payment Method
+        t('delivery.cash_on_delivery') + ' ' + formatPrice(request.fare) + ' ' + t('common.confirm'), // Custom construct or add key
         [
           {
-            text: 'No, Not Received',
+            text: t('common.cancel'),
             style: 'cancel',
             onPress: () => {
               // User said payment not received - show warning
               Alert.alert(
-                'Payment Not Received',
-                'Please collect the cash payment before completing the delivery.',
+                t('common.warning'),
+                t('delivery.cash_on_delivery'), // Placeholder, needs specific key like "Please collect cash"
               );
               return;
             }
           },
           {
-            text: 'Yes, Received',
+            text: t('common.confirm'),
             onPress: async () => {
               // Proceed with delivery completion including cash payment confirmation
               await completeDeliveryProcess(true);
@@ -163,8 +165,8 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     // Check required steps
     if (!photoTaken || !pinVerified) {
       Alert.alert(
-        'Incomplete Delivery',
-        'Please take a photo and verify the delivery PIN to complete the delivery.',
+        t('delivery.details'), // Incomplete Delivery
+        t('delivery.details_loading'), // Placeholder, needs specific key like "Please complete steps"
       );
       return;
     }
@@ -193,15 +195,15 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
 
         // Show success message with appropriate text
         const successMessage = isCashPayment
-          ? 'Cash payment received and delivery completed successfully!'
-          : 'Delivery has been successfully completed!';
+          ? t('delivery.net_earnings') // Placeholder, needs specific key like "Cash payment received"
+          : t('delivery.delivered');
 
         Alert.alert(
-          'Delivery Completed',
+          t('delivery.delivered'),
           successMessage,
           [
             {
-              text: 'OK',
+              text: t('common.ok'),
               onPress: () => {
                 // Navigate back to home screen
                 navigation.reset({
@@ -213,11 +215,11 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
           ]
         );
       } else {
-        Alert.alert('Error', 'Failed to complete delivery. Please try again.');
+        Alert.alert(t('common.error'), t('delivery.details_error'));
       }
     } catch (error) {
       console.error('Error completing delivery:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      Alert.alert(t('common.error'), t('common.error'));
     } finally {
       setIsLoading(false);
     }
@@ -231,7 +233,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     if (request?.phoneNumber) {
       Linking.openURL(`tel:${request.phoneNumber}`);
     } else {
-      Alert.alert('Error', 'Customer phone number not available.');
+      Alert.alert(t('common.error'), t('navigation.customer_phone_not_available'));
     }
   };
 
@@ -239,7 +241,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     if (request?.phoneNumber) {
       Linking.openURL(`sms:${request.phoneNumber}`);
     } else {
-      Alert.alert('Error', 'Customer phone number not available.');
+      Alert.alert(t('common.error'), t('navigation.customer_phone_not_available'));
     }
   };
 
@@ -247,13 +249,13 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
 
   // Determine button text based on payment method
   const getCompleteButtonText = () => {
-    if (isLoading) return 'Processing...';
+    if (isLoading) return t('common.submitting');
 
     if (request.paymentMethod === 'cash') {
-      return 'Complete Delivery & Confirm Cash';
+      return t('delivery.cash_on_delivery');
     }
 
-    return 'Complete Delivery';
+    return t('delivery.confirm_delivery');
   };
 
   return (
@@ -272,8 +274,8 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
           }}
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Delivery Status</Text>
-            <Text style={styles.orderId}>Order #{deliveryId}</Text>
+            <Text style={styles.title}>{t('delivery.details')}</Text>
+            <Text style={styles.orderId}>{t('navigation.order_id')} #{deliveryId}</Text>
           </View>
 
           <View style={styles.card}>
@@ -282,21 +284,21 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
                 <Ionicons name="checkmark-circle" size={40} color="#4caf50" />
               </View>
               <View style={styles.statusTextContainer}>
-                <Text style={styles.statusTitle}>Arrived at Destination</Text>
+                <Text style={styles.statusTitle}>{t('navigation.arrived_at_dropoff')}</Text>
                 <Text style={styles.statusDescription}>
-                  You have arrived at the delivery location. Complete the delivery by following the steps below.
+                  {t('navigation.at_dropoff_location')}
                 </Text>
               </View>
             </View>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Delivery Location</Text>
+            <Text style={styles.cardTitle}>{t('navigation.dropoff_location')}</Text>
             <Text style={styles.locationText}>{request.dropoffAddress}</Text>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Delivery Checklist</Text>
+            <Text style={styles.cardTitle}>{t('delivery.delivery_info')}</Text>
 
             <View style={styles.checklistItem}>
               <View style={styles.checklistIconContainer}>
@@ -307,9 +309,9 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
                 )}
               </View>
               <View style={styles.checklistTextContainer}>
-                <Text style={styles.checklistTitle}>Take Delivery Photo</Text>
+                <Text style={styles.checklistTitle}>{t('onboarding.take_photo')}</Text>
                 <Text style={styles.checklistDescription}>
-                  Take a photo of the package at the delivery location
+                  {t('delivery.photo_proof')}
                 </Text>
               </View>
               <TouchableOpacity
@@ -319,7 +321,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
                 ]}
                 onPress={handleTakePhoto}>
                 <Text style={styles.checklistButtonText}>
-                  {photoTaken ? 'Retake' : 'Take Photo'}
+                  {photoTaken ? t('onboarding.docs_reupload') : t('onboarding.take_photo')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -336,16 +338,16 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
                 )}
               </View>
               <View style={styles.checklistTextContainer}>
-                <Text style={styles.checklistTitle}>Verify Delivery PIN</Text>
+                <Text style={styles.checklistTitle}>{t('delivery.enter_delivery_pin')}</Text>
                 <Text style={styles.checklistDescription}>
-                  Enter the 4-digit PIN provided by the recipient
+                  {t('delivery.pin_placeholder')}
                 </Text>
                 {!pinVerified && (
                   <View style={styles.pinInputContainer}>
                     <TextInput
                       ref={pinInputRef}
                       style={styles.pinInput}
-                      placeholder="PIN"
+                      placeholder={t('delivery.pin_placeholder')}
                       placeholderTextColor="#999"
                       value={pinEntered}
                       onChangeText={setPinEntered}
@@ -361,12 +363,12 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
                       onPress={handleVerifyPin}
                       disabled={isLoading || pinEntered.length < 4}
                     >
-                      <Text style={styles.verifyButtonText}>Verify</Text>
+                      <Text style={styles.verifyButtonText}>{t('delivery.verify_pin')}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
                 {pinVerified && (
-                  <Text style={styles.verifiedText}>PIN Verified Successfully</Text>
+                  <Text style={styles.verifiedText}>{t('delivery.pin_verified')}</Text>
                 )}
               </View>
             </View>
@@ -374,15 +376,15 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
 
           {request.paymentMethod === 'cash' && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Cash Payment</Text>
+              <Text style={styles.cardTitle}>{t('delivery.payment_method')}</Text>
               <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Amount to Collect</Text>
+                <Text style={styles.summaryLabel}>{t('delivery.total_fare')}</Text>
                 <Text style={styles.summaryValue}>{formatPrice(request.fare)}</Text>
               </View>
               <View style={styles.paymentNote}>
                 <Ionicons name="information-circle-outline" size={16} color="#ff9800" />
                 <Text style={styles.paymentNoteText}>
-                  You'll confirm cash payment when completing delivery
+                  {t('delivery.cash_on_delivery')}
                 </Text>
               </View>
             </View>
@@ -393,9 +395,9 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
            request.packageDetails.specialInstructions.trim() !== '' &&
            request.packageDetails.specialInstructions !== 'No special instructions provided.' && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Special Instructions</Text>
+              <Text style={styles.cardTitle}>{t('delivery.special_instructions')}</Text>
               <View style={styles.specialInstructionsContainer}>
-                <Text style={styles.specialInstructionsTitle}>Instructions from Customer</Text>
+                <Text style={styles.specialInstructionsTitle}>{t('delivery.special_instructions')}</Text>
                 <Text style={styles.specialInstructionsText}>
                   {request.packageDetails.specialInstructions}
                 </Text>
@@ -404,30 +406,30 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
           )}
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Delivery Summary</Text>
+            <Text style={styles.cardTitle}>{t('delivery.delivery_info')}</Text>
 
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Package Size</Text>
+              <Text style={styles.summaryLabel}>{t('delivery.package_type')}</Text>
               <Text style={styles.summaryValue}>
-                {request.packageSize === 'small' ? 'Small' :
-                 request.packageSize === 'medium' ? 'Medium' : 'Large'}
+                {request.packageSize === 'small' ? t('delivery.size_small') :
+                 request.packageSize === 'medium' ? t('delivery.size_medium') : t('delivery.size_large')}
               </Text>
             </View>
 
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Distance</Text>
+              <Text style={styles.summaryLabel}>{t('home.distance')}</Text>
               <Text style={styles.summaryValue}>{request.distance} km</Text>
             </View>
 
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Delivery Fare</Text>
+              <Text style={styles.summaryLabel}>{t('delivery.total_fare')}</Text>
               <Text style={styles.summaryValue}>{formatPrice(request.fare)}</Text>
             </View>
 
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Payment Method</Text>
+              <Text style={styles.summaryLabel}>{t('delivery.payment_method')}</Text>
               <Text style={styles.summaryValue}>
-                {request.paymentMethod === 'cash' ? 'Cash on Delivery' : request.paymentMethod}
+                {request.paymentMethod === 'cash' ? t('delivery.cash_on_delivery') : request.paymentMethod}
               </Text>
             </View>
           </View>
@@ -448,11 +450,11 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
           <View style={styles.contactContainer}>
             <TouchableOpacity style={styles.contactButton} onPress={handleCallCustomer}>
               <Ionicons name="call" size={20} color="#0066cc" />
-              <Text style={styles.contactButtonText}>Call Customer</Text>
+              <Text style={styles.contactButtonText}>{t('delivery.call_customer')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.contactButton} onPress={handleMessageCustomer}>
               <Ionicons name="chatbubble" size={20} color="#0066cc" />
-              <Text style={styles.contactButtonText}>Message</Text>
+              <Text style={styles.contactButtonText}>{t('delivery.message_customer')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

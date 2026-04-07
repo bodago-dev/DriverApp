@@ -12,6 +12,7 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import firestoreService from '../../services/FirestoreService';
@@ -33,6 +34,7 @@ const DEFAULT_REGION = {
 };
 
 const NavigationScreen = ({ route, navigation }) => {
+  const { t } = useTranslation();
   const { deliveryId, request: deliveryRequest } = route.params;
 
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +42,7 @@ const NavigationScreen = ({ route, navigation }) => {
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [customerInfo, setCustomerInfo] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState('accepted');
-  const [eta, setEta] = useState('Calculating ETA...');
+  const [eta, setEta] = useState(t('navigation.calculating_eta'));
   const [routeCoordinates, setRouteCoordinates] = useState<{latitude: number, longitude: number}[]>([]);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -198,7 +200,7 @@ const NavigationScreen = ({ route, navigation }) => {
   // Update ETA
   const updateETA = useCallback((currentDriverLocation: {latitude: number, longitude: number} | null) => {
     if (!currentDriverLocation || !isMountedRef.current) {
-      setEta('Calculating ETA...');
+      setEta(t('navigation.calculating_eta'));
       return;
     }
 
@@ -210,9 +212,9 @@ const NavigationScreen = ({ route, navigation }) => {
       const etaResult = locationService.calculateETA(currentDriverLocation, destination);
       setEta(`${etaResult.formattedTime} (${etaResult.distance.toFixed(1)} km)`);
     } else if (isMountedRef.current) {
-      setEta('Destination not available');
+      setEta(t('navigation.destination_not_available'));
     }
-  }, [currentStep, pickupCoords, dropoffCoords]);
+  }, [currentStep, pickupCoords, dropoffCoords, t]);
 
   // Request location permission
   const requestLocationPermission = async () => {
@@ -242,7 +244,7 @@ const NavigationScreen = ({ route, navigation }) => {
     try {
       const hasPermission = await requestLocationPermission();
       if (!hasPermission) {
-        setLocationError('Location permission denied');
+        setLocationError(t('navigation.location_error'));
         return false;
       }
 
@@ -255,7 +257,7 @@ const NavigationScreen = ({ route, navigation }) => {
           setDriverLocation(newLoc);
           setDriverHeading(heading || 0);
           updateETA(newLoc);
-          
+
           // Initial map fit
           const destination = currentStep === 'accepted' || currentStep === 'arrived_pickup' ? pickupCoords : dropoffCoords;
           if (destination) {
@@ -275,7 +277,7 @@ const NavigationScreen = ({ route, navigation }) => {
           if (!isMountedRef.current) return;
           const { latitude, longitude, heading } = position.coords;
           const newLoc = { latitude, longitude };
-          
+
           setDriverLocation(newLoc);
           setDriverHeading(heading || 0);
           updateETA(newLoc);
@@ -287,7 +289,7 @@ const NavigationScreen = ({ route, navigation }) => {
             heading: heading || 0,
             updatedAt: new Date()
           });
-          
+
           // Update instruction index based on proximity to steps
           if (routeData && routeData.steps) {
             const nextStepIndex = findNextInstructionIndex(newLoc, routeData.steps);
@@ -350,7 +352,7 @@ const NavigationScreen = ({ route, navigation }) => {
             await startLocationTracking(driverId);
           }
         } else if (isMountedRef.current) {
-          Alert.alert('Error', 'Failed to load delivery details');
+          Alert.alert(t('common.error'), t('navigation.failed_to_load_delivery'));
           navigation.goBack();
         }
 
@@ -362,9 +364,9 @@ const NavigationScreen = ({ route, navigation }) => {
               // Check if the delivery was cancelled by the customer
               if (updatedDelivery.status === 'cancelled' && deliveryData?.status !== 'cancelled') {
                 Alert.alert(
-                  'Delivery Cancelled',
-                  'This delivery has been cancelled by the customer.',
-                  [{ text: 'OK', onPress: () => navigation.goBack() }]
+                  t('navigation.delivery_cancelled'),
+                  t('navigation.delivery_cancelled_by_customer'),
+                  [{ text: t('navigation.ok'), onPress: () => navigation.goBack() }]
                 );
               }
               setDeliveryData(updatedDelivery);
@@ -382,7 +384,7 @@ const NavigationScreen = ({ route, navigation }) => {
     };
 
     fetchData();
-  }, [deliveryId]);
+  }, [deliveryId, t, navigation]);
 
   // Update route when step changes
   useEffect(() => {
@@ -399,7 +401,7 @@ const NavigationScreen = ({ route, navigation }) => {
 
   const handleNextStep = async () => {
     if (locationError) {
-      Alert.alert('Location Error', 'Please enable location services to proceed.');
+      Alert.alert(t('navigation.location_error'), t('navigation.please_enable_location'));
       return;
     }
 
@@ -435,7 +437,7 @@ const NavigationScreen = ({ route, navigation }) => {
         const result = await firestoreService.updateDeliveryStatus(deliveryId, newStatus, additionalData);
 
         if (!result.success) {
-          Alert.alert('Error', result.error || 'Failed to update delivery status.');
+          Alert.alert(t('common.error'), result.error || t('navigation.failed_to_update_status'));
         } else if (navigateToCompletion && isMountedRef.current) {
           // Navigate to DeliveryStatusScreen when arriving at dropoff
           navigation.replace('DeliveryStatus', {
@@ -455,7 +457,7 @@ const NavigationScreen = ({ route, navigation }) => {
         }
       } catch (error) {
         console.error('Error updating status:', error);
-        Alert.alert('Error', 'Failed to update delivery status.');
+        Alert.alert(t('common.error'), t('navigation.failed_to_update_status'));
       }
     } else if (navigateToCompletion && isMountedRef.current) {
       // Already at dropoff, just navigate
@@ -475,40 +477,40 @@ const NavigationScreen = ({ route, navigation }) => {
       });
     }
 
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
-    };
+    if (isMountedRef.current) {
+      setIsLoading(false);
+    }
+  };
 
   const getActionButtonText = () => {
     switch (currentStep) {
-      case 'accepted': return 'Arrived at Pickup';
-      case 'arrived_pickup': return 'Start Delivery';
-      case 'in_transit': return 'Arrived at Dropoff'; // ← Changed text
-      case 'arrived_dropoff': return 'At Dropoff'; // ← Keep this for consistency
-      case 'delivered': return 'Delivery Completed';
-      default: return 'Next Step';
+      case 'accepted': return t('navigation.arrived_at_pickup');
+      case 'arrived_pickup': return t('navigation.start_delivery');
+      case 'in_transit': return t('navigation.arrived_at_dropoff');
+      case 'arrived_dropoff': return t('navigation.at_dropoff');
+      case 'delivered': return t('navigation.delivery_completed');
+      default: return t('navigation.next_step');
     }
   };
 
   const getStepTitle = () => {
     switch (currentStep) {
-      case 'accepted': return 'Navigating to Pickup';
-      case 'arrived_pickup': return 'At Pickup Location';
-      case 'in_transit': return 'En Route to Dropoff';
-      case 'arrived_dropoff': return 'At Dropoff Location';
-      case 'delivered': return 'Delivery Complete';
-      default: return 'Navigation';
+      case 'accepted': return t('navigation.navigating_to_pickup');
+      case 'arrived_pickup': return t('navigation.at_pickup_location');
+      case 'in_transit': return t('navigation.en_route_to_dropoff');
+      case 'arrived_dropoff': return t('navigation.at_dropoff_location');
+      case 'delivered': return t('navigation.delivery_complete');
+      default: return t('navigation.navigation');
     }
   };
 
   const getStepInstructions = () => {
     switch (currentStep) {
-      case 'accepted': return 'Follow the route to the pickup location';
-      case 'arrived_pickup': return 'Collect the package from the sender';
-      case 'in_transit': return 'Continue to the dropoff location';
-      case 'arrived_dropoff': return 'Deliver the package to the recipient';
-      case 'delivered': return 'Delivery successfully completed';
+      case 'accepted': return t('navigation.follow_route_to_pickup');
+      case 'arrived_pickup': return t('navigation.collect_package');
+      case 'in_transit': return t('navigation.continue_to_dropoff');
+      case 'arrived_dropoff': return t('navigation.deliver_package');
+      case 'delivered': return t('navigation.delivery_successfully_completed');
       default: return '';
     }
   };
@@ -517,11 +519,20 @@ const NavigationScreen = ({ route, navigation }) => {
     return `TZS ${price.toLocaleString()}`;
   };
 
+  const getPackageSizeText = (size: string) => {
+    switch (size) {
+      case 'small': return t('navigation.small');
+      case 'medium': return t('navigation.medium');
+      case 'large': return t('navigation.large');
+      default: return size || t('navigation.medium');
+    }
+  };
+
   const handleCallCustomer = () => {
     if (customerInfo?.phoneNumber) {
       Linking.openURL(`tel:${customerInfo.phoneNumber}`);
     } else {
-      Alert.alert('Error', 'Customer phone number not available.');
+      Alert.alert(t('common.error'), t('navigation.customer_phone_not_available'));
     }
   };
 
@@ -529,7 +540,7 @@ const NavigationScreen = ({ route, navigation }) => {
     if (customerInfo?.phoneNumber) {
       Linking.openURL(`sms:${customerInfo.phoneNumber}`);
     } else {
-      Alert.alert('Error', 'Customer phone number not available.');
+      Alert.alert(t('common.error'), t('navigation.customer_phone_not_available'));
     }
   };
 
@@ -540,11 +551,11 @@ const NavigationScreen = ({ route, navigation }) => {
 
     if (destination) {
       const label = currentStep === 'accepted' || currentStep === 'arrived_pickup'
-        ? 'Pickup Location'
-        : 'Dropoff Location';
+        ? t('navigation.pickup_location')
+        : t('navigation.dropoff_location');
       locationService.openExternalNavigation(destination, label);
     } else {
-      Alert.alert('Error', 'Destination coordinates not available.');
+      Alert.alert(t('common.error'), t('navigation.destination_coords_not_available'));
     }
   };
 
@@ -556,7 +567,7 @@ const NavigationScreen = ({ route, navigation }) => {
 
     return (
       <View style={styles.instructionsContainer}>
-        <Text style={styles.instructionsTitle}>Navigation Steps</Text>
+        <Text style={styles.instructionsTitle}>{t('navigation.navigation_steps')}</Text>
         <ScrollView style={{ maxHeight: 150 }}>
           {routeData.steps.map((step, index) => (
             <View key={index} style={[
@@ -588,7 +599,7 @@ const NavigationScreen = ({ route, navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0066cc" />
-        <Text style={styles.loadingText}>Loading delivery details...</Text>
+        <Text style={styles.loadingText}>{t('navigation.loading_delivery')}</Text>
       </View>
     );
   }
@@ -624,8 +635,8 @@ const NavigationScreen = ({ route, navigation }) => {
         {pickupCoords && (
           <Marker
             coordinate={pickupCoords}
-            title="Pickup Location"
-            description={deliveryData?.pickupLocation?.address || 'Pickup'}
+            title={t('navigation.pickup_location')}
+            description={deliveryData?.pickupLocation?.address || t('navigation.pickup_location')}
           >
             <View style={styles.markerContainer}>
               <Ionicons name="locate" size={20} color="#FFFFFF" />
@@ -636,8 +647,8 @@ const NavigationScreen = ({ route, navigation }) => {
         {dropoffCoords && (
           <Marker
             coordinate={dropoffCoords}
-            title="Dropoff Location"
-            description={deliveryData?.dropoffLocation?.address || 'Dropoff'}
+            title={t('navigation.dropoff_location')}
+            description={deliveryData?.dropoffLocation?.address || t('navigation.dropoff_location')}
           >
             <View style={[styles.markerContainer, { backgroundColor: '#ff6b6b' }]}>
               <Ionicons name="location" size={20} color="#FFFFFF" />
@@ -650,7 +661,7 @@ const NavigationScreen = ({ route, navigation }) => {
             coordinate={driverLocation}
             rotation={driverHeading}
             anchor={{ x: 0.5, y: 0.5 }}
-            title="Your Location"
+            title={t('navigation.your_location')}
           >
             <View style={styles.driverMarker}>
               <Ionicons name="navigate" size={16} color="#FFFFFF" />
@@ -677,7 +688,7 @@ const NavigationScreen = ({ route, navigation }) => {
             <Text style={styles.navigationTitle}>{getStepTitle()}</Text>
             <View style={styles.etaContainer}>
               <Ionicons name="time-outline" size={16} color="#0066cc" />
-              <Text style={styles.etaText}>{eta}</Text>
+              <Text style={styles.etaText}>{t('navigation.eta')}: {eta}</Text>
               {isFetchingRoute && (
                 <ActivityIndicator size="small" color="#0066cc" style={styles.routeLoadingIndicator} />
               )}
@@ -696,7 +707,7 @@ const NavigationScreen = ({ route, navigation }) => {
               onPress={handleOpenExternalNavigation}
             >
               <Ionicons name="navigate" size={20} color="#0066cc" />
-              <Text style={styles.navControlText}>Open in Maps</Text>
+              <Text style={styles.navControlText}>{t('navigation.open_in_maps')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -712,7 +723,7 @@ const NavigationScreen = ({ route, navigation }) => {
               }}
             >
               <Ionicons name="locate" size={20} color="#0066cc" />
-              <Text style={styles.navControlText}>My Location</Text>
+              <Text style={styles.navControlText}>{t('navigation.my_location')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -720,14 +731,14 @@ const NavigationScreen = ({ route, navigation }) => {
             <View style={styles.addressCard}>
               {(currentStep === 'accepted' || currentStep === 'arrived_pickup') ? (
                 <>
-                  <Text style={styles.addressLabel}>Pickup Location</Text>
+                  <Text style={styles.addressLabel}>{t('navigation.pickup_location')}</Text>
                   <Text style={styles.addressText}>
                     {deliveryData.pickupLocation?.name || deliveryData.pickupLocation?.address || deliveryRequest?.pickupAddress || 'N/A'}
                   </Text>
                 </>
               ) : (
                 <>
-                  <Text style={styles.addressLabel}>Dropoff Location</Text>
+                  <Text style={styles.addressLabel}>{t('navigation.dropoff_location')}</Text>
                   <Text style={styles.addressText}>
                     {deliveryData.dropoffLocation?.name || deliveryData.dropoffLocation?.address || deliveryRequest?.dropoffAddress || 'N/A'}
                   </Text>
@@ -738,18 +749,17 @@ const NavigationScreen = ({ route, navigation }) => {
 
           <View style={styles.deliveryInfo}>
             <View style={styles.deliveryInfoItem}>
-              <Text style={styles.deliveryInfoLabel}>Order ID</Text>
+              <Text style={styles.deliveryInfoLabel}>{t('navigation.order_id')}</Text>
               <Text style={styles.deliveryInfoValue}>#{deliveryId.substring(0, 8)}</Text>
             </View>
             <View style={styles.deliveryInfoItem}>
-              <Text style={styles.deliveryInfoLabel}>Package</Text>
+              <Text style={styles.deliveryInfoLabel}>{t('navigation.package')}</Text>
               <Text style={styles.deliveryInfoValue}>
-                {deliveryData.packageDetails?.size === 'small' ? 'Small' :
-                 deliveryData.packageDetails?.size === 'medium' ? 'Medium' : 'Large'}
+                {getPackageSizeText(deliveryData.packageDetails?.size)}
               </Text>
             </View>
             <View style={styles.deliveryInfoItem}>
-              <Text style={styles.deliveryInfoLabel}>Fare</Text>
+              <Text style={styles.deliveryInfoLabel}>{t('navigation.fare')}</Text>
               <Text style={styles.deliveryInfoValue}>
                 {formatPrice(deliveryData.fareDetails?.total || deliveryRequest?.fare || 0)}
               </Text>
@@ -759,11 +769,11 @@ const NavigationScreen = ({ route, navigation }) => {
           <View style={styles.contactContainer}>
             <TouchableOpacity style={styles.contactButton} onPress={handleCallCustomer}>
               <Ionicons name="call" size={20} color="#0066cc" />
-              <Text style={styles.contactButtonText}>Call Customer</Text>
+              <Text style={styles.contactButtonText}>{t('navigation.call_customer')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.contactButton} onPress={handleMessageCustomer}>
               <Ionicons name="chatbubble" size={20} color="#0066cc" />
-              <Text style={styles.contactButtonText}>Message</Text>
+              <Text style={styles.contactButtonText}>{t('navigation.message')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -773,12 +783,12 @@ const NavigationScreen = ({ route, navigation }) => {
               style={[styles.cancelButton, isLoading && styles.cancelButtonDisabled]}
               onPress={() => {
                 Alert.alert(
-                  'Cancel Delivery?',
-                  'Are you sure you want to cancel this delivery? This may affect your rating.',
+                  t('navigation.cancel_delivery_question'),
+                  t('navigation.cancel_delivery_warning'),
                   [
-                    { text: 'No, Continue', style: 'cancel' },
+                    { text: t('navigation.no_continue'), style: 'cancel' },
                     {
-                      text: 'Yes, Cancel',
+                      text: t('navigation.yes_cancel'),
                       style: 'destructive',
                       onPress: async () => {
                         const additionalData = deliveryData?.requestId ? { requestId: deliveryData.requestId } : {};
@@ -791,13 +801,13 @@ const NavigationScreen = ({ route, navigation }) => {
               }}
               disabled={isLoading}
             >
-              <Text style={styles.cancelButtonText}>Cancel Delivery</Text>
+              <Text style={styles.cancelButtonText}>{t('navigation.cancel_delivery')}</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.specialInstructionsContainer}>
-              <Text style={styles.specialInstructionsTitle}>Special Instructions</Text>
+              <Text style={styles.specialInstructionsTitle}>{t('navigation.special_instructions')}</Text>
               <Text style={styles.specialInstructionsText}>
-                {deliveryData.packageDetails?.specialInstructions || 'No special instructions provided.'}
+                {deliveryData.packageDetails?.specialInstructions || t('navigation.no_special_instructions')}
               </Text>
             </View>
           )}
@@ -810,7 +820,7 @@ const NavigationScreen = ({ route, navigation }) => {
           disabled={isLoading || currentStep === 'delivered'}
         >
           <Text style={styles.actionButtonText}>
-            {isLoading ? 'Processing...' : getActionButtonText()}
+            {isLoading ? t('navigation.processing') : getActionButtonText()}
           </Text>
         </TouchableOpacity>
       </View>
