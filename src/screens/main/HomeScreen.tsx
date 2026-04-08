@@ -56,10 +56,10 @@ const HomeScreen = ({ navigation }) => {
       setDriverId(currentUser.uid);
     } else {
       setIsLoading(false);
-      Alert.alert('Error', 'Driver not authenticated. Please log in.');
+      Alert.alert(t('common.error'), t('home.driver_not_authenticated'));
       navigation.navigate('AuthStack');
     }
-  }, []);
+  }, [t, navigation]);
 
   useEffect(() => {
     if (driverId) {
@@ -140,7 +140,6 @@ const HomeScreen = ({ navigation }) => {
     try {
       // Fetch driver profile first to get vehicle type, rating, and verification status
       const profileResult = await firestoreService.getUserProfile(driverId!);
-//       console.log('User profile result:', profileResult);
 
       let vehicleType = 'boda'; // Default fallback
       let verificationStatus = 'inactive';
@@ -151,7 +150,6 @@ const HomeScreen = ({ navigation }) => {
                      profileResult.userProfile.vehicleType ||
                      'boda';
 
-//         console.log('Vehicle type from profile:', vehicleType);
         setDriverVehicleType(vehicleType);
 
         // Set verification status
@@ -206,7 +204,7 @@ const HomeScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error fetching driver data:', error);
-      Alert.alert('Error', 'Failed to fetch driver data.');
+      Alert.alert(t('common.error'), t('home.fetch_driver_data_error'));
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -226,22 +224,20 @@ const HomeScreen = ({ navigation }) => {
       }
 
       const permissionStatus = await check(permission);
-//       console.log('Current permission status:', permissionStatus);
 
       if (permissionStatus === RESULTS.GRANTED) {
         return true;
       }
 
       const requestResult = await request(permission);
-//       console.log('Permission request result:', requestResult);
 
       if (requestResult === RESULTS.BLOCKED) {
         Alert.alert(
-          'Permission Required',
-          'Location permission is required to receive delivery requests. Please enable it in settings.',
+          t('common.warning'),
+          t('home.location_permission_required'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('home.open_settings'), onPress: () => Linking.openSettings() }
           ]
         );
         return false;
@@ -295,8 +291,6 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const setupDeliverySubscription = (location: {latitude: number, longitude: number}, vehicleType: string | null) => {
-//     console.log('Setting up delivery subscription with location and vehicle filter:', location, vehicleType);
-
     // Clear any existing subscription
     if (unsubscribeRequestsRef.current) {
       unsubscribeRequestsRef.current();
@@ -319,17 +313,16 @@ const HomeScreen = ({ navigation }) => {
         },
         (error) => {
           console.error('Delivery request subscription error:', error);
-          setLocationError('Failed to load delivery requests');
+          setLocationError(t('home.failed_load_requests'));
         }
       );
     } catch (error) {
       console.error('Error setting up subscription:', error);
-      setLocationError('Failed to setup request subscription');
+      setLocationError(t('home.failed_setup_subscription'));
     }
   };
 
   const startLocationTracking = async () => {
-//     console.log('Starting location tracking...');
     try {
       setIsLocationLoading(true);
       setLocationError(null);
@@ -338,11 +331,11 @@ const HomeScreen = ({ navigation }) => {
       const servicesEnabled = await checkLocationServices();
       if (!servicesEnabled) {
         Alert.alert(
-          'Location Services Required',
-          'Please enable location services to go online',
+          t('home.location_services_required_title'),
+          t('home.location_services_required_msg'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('home.open_settings'), onPress: () => Linking.openSettings() }
           ]
         );
         setIsOnline(false);
@@ -353,7 +346,6 @@ const HomeScreen = ({ navigation }) => {
       let initialLocation;
       try {
         initialLocation = await getCurrentPosition();
-//         console.log('Initial location obtained:', initialLocation);
 
         // Update state and wait for it to complete
         await new Promise<void>((resolve) => {
@@ -408,7 +400,7 @@ const HomeScreen = ({ navigation }) => {
       setupDeliverySubscription(initialLocation, driverVehicleType);
     } catch (error) {
       console.error('Location tracking failed:', error);
-      setLocationError(error.message || 'Failed to start tracking');
+      setLocationError(error.message || t('home.failed_start_tracking'));
       setIsOnline(false);
     } finally {
       setIsLocationLoading(false);
@@ -436,11 +428,11 @@ const HomeScreen = ({ navigation }) => {
     // Check verification status first
     if (verificationStatus !== 'active') {
       Alert.alert(
-        'Account Not Activated',
+        t('home.account_not_activated_title'),
         verificationStatus === 'suspended'
-          ? 'Your account has been suspended. Please contact support for assistance.'
-          : 'Your account is currently under verification. You will be able to go online once your documents are verified and account is activated. This usually takes 1-2 business days.',
-        [{ text: 'OK' }]
+          ? t('home.account_suspended_msg')
+          : t('home.verification_pending_msg'),
+        [{ text: t('common.ok') }]
       );
       return;
     }
@@ -450,11 +442,11 @@ const HomeScreen = ({ navigation }) => {
     // Ensure we have a vehicle type before going online
     if (!driverVehicleType) {
       Alert.alert(
-        'Vehicle Type Required',
-        'Please complete your vehicle information in your profile before going online.',
+        t('home.vehicle_type_required_title'),
+        t('home.vehicle_type_required_msg'),
         [
           {
-            text: 'OK',
+            text: t('common.ok'),
             onPress: () => navigation.navigate('ProfileTab', {
               screen: 'ProfileMain',
               params: { showVehicleForm: true }
@@ -477,11 +469,11 @@ const HomeScreen = ({ navigation }) => {
         }
 
         await startLocationTracking();
-        Alert.alert('You are now online', 'You will receive delivery requests in your area.');
+        Alert.alert(t('home.online_title'), t('home.online_msg'));
       } catch (error) {
         console.error('Error going online:', error);
         setIsOnline(false);
-        Alert.alert('Error', 'Could not start location tracking');
+        Alert.alert(t('common.error'), t('home.cant_start_tracking'));
       }
     } else {
       stopLocationTracking();
@@ -490,7 +482,7 @@ const HomeScreen = ({ navigation }) => {
         unsubscribeRequestsRef.current = null;
       }
       setNearbyRequests([]);
-      Alert.alert('You are now offline', 'You will not receive any delivery requests.');
+      Alert.alert(t('home.offline_title'), t('home.offline_msg'));
     }
   };
 
@@ -504,11 +496,9 @@ const HomeScreen = ({ navigation }) => {
         distance: request.distance?.toFixed(1) || 'N/A',
         fare: request.fareDetails?.total || 0,
         estimatedTime: request.estimatedTime || 'N/A',
-        // Add any other necessary fields from the request
-        ...request // Spread the rest of the request data
+        ...request
       }
     });
-    console.log('Request data...', request);
   };
 
   const formatPrice = (price: number) => {
@@ -517,11 +507,11 @@ const HomeScreen = ({ navigation }) => {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'accepted': return 'Driver Assigned';
-      case 'arrived_pickup': return 'At Pickup';
-      case 'picked_up': return 'Picked Up';
-      case 'in_transit': return 'In Transit';
-      case 'arrived_dropoff': return 'At Destination';
+      case 'accepted': return t('delivery.status_accepted');
+      case 'arrived_pickup': return t('delivery.status_arrived_pickup');
+      case 'picked_up': return t('delivery.status_picked_up');
+      case 'in_transit': return t('delivery.status_in_transit');
+      case 'arrived_dropoff': return t('delivery.status_arrived_dropoff');
       default: return status.replace('_', ' ');
     }
   };
@@ -529,13 +519,22 @@ const HomeScreen = ({ navigation }) => {
   const getVerificationStatusText = () => {
     switch (verificationStatus) {
       case 'active':
-        return 'Account Activated';
+        return t('home.account_activated');
       case 'inactive':
-        return 'Under Verification';
+        return t('home.under_verification');
       case 'suspended':
-        return 'Account Suspended';
+        return t('home.account_suspended');
       default:
-        return 'Status Unknown';
+        return t('home.status_unknown');
+    }
+  };
+
+  const getPackageSizeText = (size: string) => {
+    switch (size) {
+      case 'small': return t('delivery.size_small');
+      case 'medium': return t('delivery.size_medium');
+      case 'large': return t('delivery.size_large');
+      default: return size;
     }
   };
 
@@ -543,7 +542,7 @@ const HomeScreen = ({ navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0066cc" />
-        <Text style={styles.loadingText}>Loading driver data...</Text>
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -576,7 +575,7 @@ const HomeScreen = ({ navigation }) => {
           />
           <Text style={styles.verificationBannerText}>
             {verificationStatus === 'suspended'
-              ? 'Your account has been suspended. Please contact support.'
+              ? t('home.account_suspended_contact')
               : t('home.verification_pending_msg')}
           </Text>
         </View>
@@ -608,7 +607,7 @@ const HomeScreen = ({ navigation }) => {
       {isLocationLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#0066cc" />
-          <Text style={styles.loadingText}>Getting your location...</Text>
+          <Text style={styles.loadingText}>{t('home.getting_location')}</Text>
         </View>
       )}
 
@@ -616,7 +615,7 @@ const HomeScreen = ({ navigation }) => {
       {isOnline && driverVehicleType && (
         <View style={styles.vehicleFilterContainer}>
           <Text style={styles.vehicleFilterText}>
-            Showing requests for: {driverVehicleType}
+            {t('home.request_type')} {driverVehicleType}
           </Text>
         </View>
       )}
@@ -624,7 +623,7 @@ const HomeScreen = ({ navigation }) => {
       {/* Active Deliveries Panel */}
       {activeDeliveries.length > 0 && (
         <View style={styles.activeDeliveriesContainer}>
-          <Text style={styles.sectionTitle}>Active Deliveries</Text>
+          <Text style={styles.sectionTitle}>{t('home.active_deliveries')}</Text>
           {activeDeliveries.map((delivery) => (
             <TouchableOpacity
               key={delivery.id}
@@ -703,7 +702,7 @@ const HomeScreen = ({ navigation }) => {
             <Ionicons name="search-outline" size={40} color="#ccc" />
             <Text style={styles.emptyRequestsText}>{t('home.no_nearby_requests')}</Text>
             <Text style={styles.emptyRequestsSubtext}>
-              Pull down to refresh or wait for new requests
+              {t('home.pull_to_refresh')}
             </Text>
           </View>
         )}
@@ -729,7 +728,7 @@ const HomeScreen = ({ navigation }) => {
               <View style={styles.requestDistance}>
                 <Ionicons name="navigate-outline" size={16} color="#0066cc" />
                 <Text style={styles.requestDistanceText}>
-                  {request.distance ? `${request.distance.toFixed(1)} km` : 'N/A'} • {request.estimatedTime || 'N/A'}
+                  {request.distance ? `${request.distance.toFixed(1)} ${t('home.km')}` : 'N/A'} • {request.estimatedTime || t('home.na')}
                 </Text>
               </View>
               <Text style={styles.requestFare}>{formatPrice(request.fareDetails.total || 0)}</Text>
@@ -761,8 +760,7 @@ const HomeScreen = ({ navigation }) => {
               <View style={styles.packageInfo}>
                 <Ionicons name="cube-outline" size={16} color="#666" />
                 <Text style={styles.packageInfoText}>
-                  {request.packageDetails.size === 'small' ? 'Small' :
-                   request.packageDetails.size === 'medium' ? 'Medium' : 'Large'} package
+                  {getPackageSizeText(request.packageDetails.size)} {t('home.package')}
                 </Text>
               </View>
               {request.vehicleType && (
@@ -771,7 +769,7 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={styles.vehicleInfoText}>{request.vehicleType}</Text>
                 </View>
               )}
-                <Text style={styles.viewButtonText}>View</Text>
+                <Text style={styles.viewButtonText}>{t('delivery.details')}</Text>
             </View>
           </TouchableOpacity>
         ))}
@@ -818,28 +816,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     flex: 1,
   },
-  verificationBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    marginHorizontal: 15,
-    marginTop: 10,
-    marginBottom: 10,
-    borderRadius: 8,
-  },
-  inactiveBanner: {
-    backgroundColor: '#ff9800',
-  },
-  suspendedBanner: {
-    backgroundColor: '#f44336',
-  },
-  verificationBannerText: {
-    marginLeft: 8,
-    marginTop: 15,
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-  },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -855,6 +831,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+  },
+  inactiveBanner: {
+    backgroundColor: '#ff9800',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 15,
+    marginTop: 10,
+    marginBottom: 10,
+    borderRadius: 8,
+  },
+  suspendedBanner: {
+    backgroundColor: '#f44336',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 15,
+    marginTop: 10,
+    marginBottom: 10,
+    borderRadius: 8,
+  },
+  verificationBannerText: {
+    marginLeft: 8,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#fff',
   },
   statusContent: {
     flex: 1,

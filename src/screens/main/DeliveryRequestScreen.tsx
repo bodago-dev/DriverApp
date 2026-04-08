@@ -21,6 +21,7 @@ import {
 } from '@react-native-firebase/firestore';
 import firestoreService from '../../services/FirestoreService';
 import authService from '../../services/AuthService';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get('window');
 
@@ -94,6 +95,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
   route: { params: { request: DeliveryRequest } };
   navigation: any;
 }) => {
+  const { t } = useTranslation();
   const { request } = route.params;
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(100);
@@ -137,9 +139,9 @@ const DeliveryRequestScreen = ({ route, navigation }: {
         if (prevCountdown <= 1) {
           clearInterval(countdownInterval);
           Alert.alert(
-            'Request Expired',
-            'This delivery request has expired.',
-            [{ text: 'OK', onPress: () => navigation.goBack() }]
+            t('home.request_expired_title') || 'Request Expired',
+            t('home.request_expired_message') || 'This delivery request has expired.',
+            [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
           );
           return 0;
         }
@@ -148,7 +150,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
     }, 1000);
 
     return () => clearInterval(countdownInterval);
-  }, [navigation]);
+  }, [navigation, t]);
 
   const handleAccept = async () => {
     setIsLoading(true);
@@ -156,7 +158,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
     try {
       const currentUser = authService.getCurrentUser();
       if (!currentUser) {
-        throw new Error('User not authenticated');
+        throw new Error(t('delivery.history_auth_error') || 'User not authenticated');
       }
 
       const db = getFirestore();
@@ -171,7 +173,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
       const querySnapshot = await getDocs(deliveriesQuery);
 
       if (querySnapshot.empty) {
-        throw new Error('No delivery found for this request');
+        throw new Error(t('delivery.no_delivery_found') || 'No delivery found for this request');
       }
 
       const deliveryDoc = querySnapshot.docs[0];
@@ -185,7 +187,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
       );
 
       if (!updateRequestResult.success) {
-        throw new Error(updateRequestResult.error || 'Failed to update request status');
+        throw new Error(updateRequestResult.error || t('common.error'));
       }
 
       // 3. Update the delivery document with driver assignment
@@ -199,7 +201,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
       );
 
       if (!updateDeliveryResult.success) {
-        throw new Error(updateDeliveryResult.error || 'Failed to update delivery status');
+        throw new Error(updateDeliveryResult.error || t('common.error'));
       }
 
       // 4. Navigate to NavigationScreen
@@ -219,7 +221,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
 
     } catch (error) {
       console.error('Error accepting request:', error);
-      Alert.alert('Error', error.message || 'Failed to accept delivery request');
+      Alert.alert(t('common.error'), error.message || t('delivery.accept_error'));
     } finally {
       setIsLoading(false);
     }
@@ -227,17 +229,26 @@ const DeliveryRequestScreen = ({ route, navigation }: {
 
   const handleDecline = () => {
     Alert.alert(
-      'Decline Request',
-      'Are you sure you want to decline this delivery request?',
+      t('delivery.decline_request_title') || 'Decline Request',
+      t('delivery.decline_request_message') || 'Are you sure you want to decline this delivery request?',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Decline', style: 'destructive', onPress: () => navigation.goBack() },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('delivery.decline'), style: 'destructive', onPress: () => navigation.goBack() },
       ]
     );
   };
 
   const formatPrice = (price: number) => {
     return `TZS ${price.toLocaleString()}`;
+  };
+
+  const getPackageSizeLabel = (size: string) => {
+    switch (size?.toLowerCase()) {
+      case 'small': return t('delivery.size_small');
+      case 'medium': return t('delivery.size_medium');
+      case 'large': return t('delivery.size_large');
+      default: return size;
+    }
   };
 
   return (
@@ -254,13 +265,13 @@ const DeliveryRequestScreen = ({ route, navigation }: {
           setTimeout(fitMapToCoordinates, 500);
         }}
       >
-        <Marker coordinate={pickupCoordinates} title="Pickup">
+        <Marker coordinate={pickupCoordinates} title={t('home.pickup')}>
           <View style={styles.markerContainer}>
             <Ionicons name="locate" size={20} color="#FFFFFF" />
           </View>
         </Marker>
 
-        <Marker coordinate={dropoffCoordinates} title="Dropoff">
+        <Marker coordinate={dropoffCoordinates} title={t('home.dropoff')}>
           <View style={[styles.markerContainer, { backgroundColor: '#ff6b6b' }]}>
             <Ionicons name="location" size={20} color="#FFFFFF" />
           </View>
@@ -277,7 +288,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
       {/* Request Details Panel */}
       <View style={styles.detailsPanel}>
         <View style={styles.header}>
-          <Text style={styles.title}>New Delivery Request</Text>
+          <Text style={styles.title}>{t('home.new_delivery_request')}</Text>
           <View style={styles.timerContainer}>
             <Text style={styles.timerText}>{countdown}s</Text>
           </View>
@@ -288,7 +299,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
             <View style={styles.locationItem}>
               <View style={[styles.dot, { backgroundColor: '#0066cc' }]} />
               <View style={styles.locationTextContainer}>
-                <Text style={styles.locationLabel}>Pickup</Text>
+                <Text style={styles.locationLabel}>{t('home.pickup')}</Text>
                 <Text style={styles.locationText} numberOfLines={2}>
                   {request.pickupLocation?.name || request.pickupLocation?.address || request.pickupAddress}
                 </Text>
@@ -298,7 +309,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
             <View style={styles.locationItem}>
               <View style={[styles.dot, { backgroundColor: '#ff6b6b' }]} />
               <View style={styles.locationTextContainer}>
-                <Text style={styles.locationLabel}>Dropoff</Text>
+                <Text style={styles.locationLabel}>{t('home.dropoff')}</Text>
                 <Text style={styles.locationText} numberOfLines={2}>
                   {request.dropoffLocation?.name || request.dropoffLocation?.address || request.dropoffAddress}
                 </Text>
@@ -309,28 +320,28 @@ const DeliveryRequestScreen = ({ route, navigation }: {
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
               <Ionicons name="resize" size={20} color="#666" />
-              <Text style={styles.infoLabel}>Size</Text>
+              <Text style={styles.infoLabel}>{t('delivery.size')}</Text>
               <Text style={styles.infoValue}>
-                {(request.packageDetails?.size || request.packageSize).charAt(0).toUpperCase() + (request.packageDetails?.size || request.packageSize).slice(1)}
+                {getPackageSizeLabel(request.packageDetails?.size || request.packageSize)}
               </Text>
             </View>
             <View style={styles.infoItem}>
               <Ionicons name="map" size={20} color="#666" />
-              <Text style={styles.infoLabel}>Distance</Text>
+              <Text style={styles.infoLabel}>{t('home.distance')}</Text>
               <Text style={styles.infoValue}>{request.distance?.toFixed(1) || 'N/A'} km</Text>
             </View>
             <View style={styles.infoItem}>
               <Ionicons name="cash" size={20} color="#666" />
-              <Text style={styles.infoLabel}>Fare</Text>
+              <Text style={styles.infoLabel}>{t('home.fare')}</Text>
               <Text style={styles.infoValue}>{formatPrice(request.fareDetails?.total || request.fare)}</Text>
             </View>
           </View>
 
           <View style={styles.paymentContainer}>
-            <Text style={styles.paymentLabel}>Payment Method</Text>
+            <Text style={styles.paymentLabel}>{t('delivery.payment_method')}</Text>
             <View style={styles.paymentMethod}>
               <Ionicons name="card" size={20} color="#0066cc" />
-              <Text style={styles.paymentText}>{request.paymentMethod || 'M-Pesa (Paid)'}</Text>
+              <Text style={styles.paymentText}>{request.paymentMethod || 'M-Pesa'}</Text>
             </View>
           </View>
         </ScrollView>
@@ -341,7 +352,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
             onPress={handleDecline}
             disabled={isLoading}
           >
-            <Text style={styles.declineText}>Decline</Text>
+            <Text style={styles.declineText}>{t('home.reject_request')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.acceptButton}
@@ -351,7 +362,7 @@ const DeliveryRequestScreen = ({ route, navigation }: {
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.acceptText}>Accept Request</Text>
+              <Text style={styles.acceptText}>{t('home.accept_request')}</Text>
             )}
           </TouchableOpacity>
         </View>

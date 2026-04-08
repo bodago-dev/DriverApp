@@ -191,7 +191,7 @@ const DeliveryDetailsScreen = ({ route, navigation }) => {
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>{t('delivery.payment_method')}</Text>
           <Text style={styles.detailValue}>
-            {delivery.paymentMethod === 'cash' ? t('delivery.cash_on_delivery') :
+            {delivery.paymentMethod === 'cash' ? t('delivery.paid_cash') :
              delivery.paymentMethod === 'mpesa' ? 'M-Pesa' :
              delivery.paymentMethod === 'airtelmoney' ? 'Airtel Money' :
              delivery.paymentMethod === 'mixx' ? 'Mixx by Yas' : 'N/A'}

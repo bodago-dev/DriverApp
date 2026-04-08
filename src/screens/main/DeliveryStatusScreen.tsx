@@ -74,7 +74,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
     // For demo purposes, we'll simulate taking a photo
     Alert.alert(
       t('onboarding.take_photo'), // Take Photo
-      t('delivery.navigation_steps'), // Placeholder, ideally a specific key, but reusing a navigation one. Or create a specific one.
+      t('delivery.photo_proof'), // Placeholder, ideally a specific key, but reusing a navigation one. Or create a specific one.
       [
         {
           text: t('common.cancel'),
@@ -132,7 +132,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
       // Show confirmation dialog for cash payment
       Alert.alert(
         t('delivery.payment_method'), // Cash on Delivery -> Payment Method
-        t('delivery.cash_on_delivery') + ' ' + formatPrice(request.fare) + ' ' + t('common.confirm'), // Custom construct or add key
+        t('delivery.cash_confirmation') + ' ' + formatPrice(request.fare),
         [
           {
             text: t('common.cancel'),
@@ -195,7 +195,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
 
         // Show success message with appropriate text
         const successMessage = isCashPayment
-          ? t('delivery.net_earnings') // Placeholder, needs specific key like "Cash payment received"
+          ? t('delivery.cash_received') // Placeholder, needs specific key like "Cash payment received"
           : t('delivery.delivered');
 
         Alert.alert(
@@ -429,7 +429,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>{t('delivery.payment_method')}</Text>
               <Text style={styles.summaryValue}>
-                {request.paymentMethod === 'cash' ? t('delivery.cash_on_delivery') : request.paymentMethod}
+                {request.paymentMethod === 'cash' ? t('delivery.paid_cash') : request.paymentMethod}
               </Text>
             </View>
           </View>
