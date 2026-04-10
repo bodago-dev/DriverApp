@@ -84,6 +84,7 @@
     "docs_subtitle": "Pakia nyaraka zinazohitajika",
     "upload_photo": "Pakia Picha",
     "take_photo": "Piga Picha",
+    "upload_document": "Pakia Nyaraka",
     "choose_library": "Chagua kutoka Maktaba",
     "verification_submitted": "Maombi Yamewasilishwa",
     "verification_submitted_msg": "Tunakagua nyaraka zako. Hii huchukua saa 24-48.",
@@ -97,7 +98,7 @@
     "vehicle_type_error": "Tafadhali chagua aina ya chombo",
     "vehicle_fields_error": "Tafadhali jaza sehemu zote zinazohitajika",
     "vehicle_save_error": "Imeshindwa kuhifadhi taarifa za chombo",
-    "vehicle_info_display": "Taarifa za chombo chako zitathibitishwa na kuonyeshwa kwa wateja wakati wa mizigo.",
+    "vehicle_info_display": "Taarifa za chombo chako zitathibitishwa na kuonyeshwa kwa wateja wakati wa usafirishaji.",
     "docs_upload_method": "Chagua njia ya kupakia",
     "docs_reupload": "Pakia Tena",
     "docs_missing_error": "Tafadhali pakia nyaraka zifuatazo zinazohitajika:",
@@ -110,9 +111,9 @@
     "doc_vehicle_reg": "Usajili wa Chombo",
     "doc_vehicle_reg_desc": "Kadi ya usajili wa chombo au nyaraka",
     "doc_national_id": "Kitambulisho cha Taifa / Pasipoti",
-    "doc_national_id_desc": "Kitambulisho cha Taifa au pasipoti",
-    "doc_insurance": "Nyaraka ya Bima",
-    "doc_insurance_desc": "Nyaraka ya bima ya chombo (kama ipo)"
+    "doc_national_id_desc": "Kitambulisho cha NIDA au pasipoti",
+    "doc_insurance": "Kadi ya Bima",
+    "doc_insurance_desc": "Kadi ya bima ya chombo"
   },
   "home": {
     "go_online_request_header": "Ingia Hewani",
@@ -128,7 +129,7 @@
     "no_nearby_requests": "Hakuna request za karibu kwa sasa",
     "searching_requests": "Inatafuta request za karibu",
     "verification_pending": "Uthibitisho Unasubiriwa",
-    "verification_pending_msg": "Akaunti yako inakaguliwa kwa sasa. Utaweza kuingia hewani pindi utakapothibitishwa.",
+    "verification_pending_msg": "Akaunti yako inakaguliwa kwa sasa. Utaweza kuingia hewani utakapothibitishwa.",
     "location_permission_required": "Ruhusa ya eneo inahitajika ili kupokea maombi ya mizigo.",
     "open_settings": "Fungua Mipangilio",
     "accept_request": "Kubali Ombi",

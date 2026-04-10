@@ -84,6 +84,7 @@
     "docs_subtitle": "Upload required documents",
     "upload_photo": "Upload Photo",
     "take_photo": "Take Photo",
+    "upload_document": "Upload Document",
     "choose_library": "Choose from Library",
     "verification_submitted": "Verification Submitted",
     "verification_submitted_msg": "We are reviewing your documents. This usually takes 24-48 hours.",
@@ -110,7 +111,7 @@
     "doc_vehicle_reg": "Vehicle Registration",
     "doc_vehicle_reg_desc": "Vehicle registration card or document",
     "doc_national_id": "National ID / Passport",
-    "doc_national_id_desc": "National ID card or passport",
+    "doc_national_id_desc": "NIDA card or passport",
     "doc_insurance": "Insurance Document",
     "doc_insurance_desc": "Vehicle insurance document (if available)"
   },

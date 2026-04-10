@@ -206,7 +206,7 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
                   style={styles.uploadButton}
                   onPress={() => handleUploadDocument(document.id)}>
                   <Ionicons name="cloud-upload-outline" size={18} color="#0066cc" />
-                  <Text style={styles.uploadButtonText}>{t('onboarding.upload_photo')}</Text>
+                  <Text style={styles.uploadButtonText}>{t('onboarding.upload_document')}</Text>
                 </TouchableOpacity>
               )}
             </View>
