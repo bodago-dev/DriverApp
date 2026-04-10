@@ -62,11 +62,11 @@ const RiderAboutScreen = ({ navigation }) => {
         <View style={styles.featureList}>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
-            <Text style={styles.featureText}>{t('about.flexible_hours')}</Text>
+            <Text style={styles.featureText}>{t('about.competitive_earnings')}</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
-            <Text style={styles.featureText}>{t('about.competitive_earnings')}</Text>
+            <Text style={styles.featureText}>{t('about.flexible_hours')}</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
@@ -75,10 +75,6 @@ const RiderAboutScreen = ({ navigation }) => {
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
             <Text style={styles.featureText}>{t('about.support_247')}</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Ionicons name="checkmark-circle" size={20} color="#0066cc" />
-            <Text style={styles.featureText}>{t('about.realtime_tracking')}</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="checkmark-circle" size={20} color="#0066cc" />

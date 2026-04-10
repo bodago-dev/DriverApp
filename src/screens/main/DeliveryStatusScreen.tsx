@@ -384,7 +384,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
               <View style={styles.paymentNote}>
                 <Ionicons name="information-circle-outline" size={16} color="#ff9800" />
                 <Text style={styles.paymentNoteText}>
-                  {t('delivery.cash_on_delivery')}
+                  {t('delivery.paid_cash')}
                 </Text>
               </View>
             </View>
