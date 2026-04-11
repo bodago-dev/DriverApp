@@ -12,8 +12,10 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getAuth, signOut } from '@react-native-firebase/auth';
 import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useTranslation } from 'react-i18next';
+import storageService from '../../services/StorageService';
+import authService from '../../services/AuthService';
 
 const ProfileScreen = ({ navigation }) => {
   const { t } = useTranslation();
@@ -30,9 +32,12 @@ const ProfileScreen = ({ navigation }) => {
         if (currentUser) {
           const userDoc = await getDoc(doc(firestore, 'users', currentUser.uid));
           if (userDoc.exists()) {
+            const userData = userDoc.data();
             setUser({
-              ...userDoc.data(),
-              profilePicture: require('../../assets/driver-avatar-placeholder.jpg'),
+              ...userData,
+              profilePicture: userData.profilePictureUrl
+                ? { uri: userData.profilePictureUrl }
+                : require('../../assets/driver-avatar-placeholder.jpg'),
             });
           }
         }
@@ -90,22 +95,80 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const handleProfilePhotoPress = () => {
-    launchImageLibrary(
-      {
-        mediaType: 'photo',
-        includeBase64: false,
-        maxHeight: 300,
-        maxWidth: 300,
-      },
-      (response) => {
-        if (!response.didCancel && !response.errorCode) {
-          setUser((prevUser) => ({
-            ...prevUser,
-            profilePicture: { uri: response.assets[0].uri },
-          }));
-        }
-      }
+    Alert.alert(
+      t('profile.change_photo', { defaultValue: 'Change Profile Photo' }),
+      '',
+      [
+        {
+          text: t('onboarding.take_photo'),
+          onPress: () => pickProfilePhoto('camera'),
+        },
+        {
+          text: t('onboarding.choose_library'),
+          onPress: () => pickProfilePhoto('gallery'),
+        },
+        {
+          text: t('common.cancel'),
+          style: 'cancel',
+        },
+      ]
     );
+  };
+
+  const pickProfilePhoto = async (source) => {
+    const options = {
+      mediaType: 'photo',
+      includeBase64: false,
+      maxHeight: 600,
+      maxWidth: 600,
+      quality: 0.8,
+    };
+
+    const callback = async (response) => {
+      if (response.didCancel) return;
+      if (response.errorCode) {
+        Alert.alert(t('common.error'), response.errorMessage);
+        return;
+      }
+
+      if (response.assets && response.assets.length > 0) {
+        const asset = response.assets[0];
+        await uploadProfilePhoto(asset.uri);
+      }
+    };
+
+    if (source === 'camera') {
+      launchCamera(options, callback);
+    } else {
+      launchImageLibrary(options, callback);
+    }
+  };
+
+  const uploadProfilePhoto = async (localUri) => {
+    setLoading(true);
+    try {
+      const downloadUrl = await storageService.uploadProfilePhoto(localUri);
+
+      // Update Firestore
+      const updateResult = await authService.updateUserProfile({
+        profilePictureUrl: downloadUrl,
+      });
+
+      if (updateResult.success) {
+        setUser((prevUser) => ({
+          ...prevUser,
+          profilePicture: { uri: downloadUrl },
+          profilePictureUrl: downloadUrl,
+        }));
+      } else {
+        throw new Error(updateResult.error);
+      }
+    } catch (error) {
+      console.error('Profile photo upload error:', error);
+      Alert.alert(t('common.error'), t('profile.profile_save_error', { defaultValue: 'Failed to save profile photo' }));
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {

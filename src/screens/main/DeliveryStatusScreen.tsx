@@ -16,7 +16,9 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import firestoreService from '../../services/FirestoreService';
+import storageService from '../../services/StorageService';
 import { useTranslation } from 'react-i18next';
+import { launchCamera } from 'react-native-image-picker';
 
 const DeliveryStatusScreen = ({ route, navigation }) => {
   const { deliveryId, request } = route.params;
@@ -25,6 +27,7 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [deliveryCompleted, setDeliveryCompleted] = useState(false);
   const [photoTaken, setPhotoTaken] = useState(false);
+  const [proofOfDeliveryUrl, setProofOfDeliveryUrl] = useState('');
   const [pinEntered, setPinEntered] = useState('');
   const [pinVerified, setPinVerified] = useState(false);
   const [cashPaymentReceived, setCashPaymentReceived] = useState(false);
@@ -70,27 +73,43 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
   };
 
   const handleTakePhoto = () => {
-    // In a real app, this would open the camera
-    // For demo purposes, we'll simulate taking a photo
-    Alert.alert(
-      t('onboarding.take_photo'), // Take Photo
-      t('delivery.photo_proof'), // Placeholder, ideally a specific key, but reusing a navigation one. Or create a specific one.
-      [
-        {
-          text: t('common.cancel'),
-          style: 'cancel',
-        },
-        {
-          text: t('onboarding.take_photo'),
-          onPress: () => {
-            // Simulate photo capture
-            setTimeout(() => {
-              setPhotoTaken(true);
-            }, 1000);
-          },
-        },
-      ]
-    );
+    const options = {
+      mediaType: 'photo',
+      includeBase64: false,
+      quality: 0.7,
+      saveToPhotos: true,
+    };
+
+    launchCamera(options, async (response) => {
+      if (response.didCancel) return;
+      if (response.errorCode) {
+        Alert.alert(t('common.error'), response.errorMessage);
+        return;
+      }
+
+      if (response.assets && response.assets.length > 0) {
+        const asset = response.assets[0];
+        await uploadProofOfDelivery(asset.uri);
+      }
+    });
+  };
+
+  const uploadProofOfDelivery = async (localUri) => {
+    setIsLoading(true);
+    try {
+      const timestamp = Date.now();
+      const destination = `deliveries/${deliveryId}/proof_of_delivery_${timestamp}.jpg`;
+      const downloadUrl = await storageService.uploadFile(localUri, destination);
+
+      setProofOfDeliveryUrl(downloadUrl);
+      setPhotoTaken(true);
+      Alert.alert(t('common.success'), t('delivery.photo_proof_success', { defaultValue: 'Proof of delivery photo uploaded successfully' }));
+    } catch (error) {
+      console.error('Proof of delivery upload error:', error);
+      Alert.alert(t('common.error'), t('delivery.photo_upload_error', { defaultValue: 'Failed to upload proof of delivery photo' }));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleVerifyPin = async () => {
@@ -178,13 +197,20 @@ const DeliveryStatusScreen = ({ route, navigation }) => {
       let result;
       if (isCashPayment) {
         // For cash payments, we need to complete delivery and mark payment as received
-        result = await firestoreService.completeDeliveryAndPayment(deliveryId, 'cash');
+        result = await firestoreService.completeDeliveryAndPayment(deliveryId, 'cash', {
+          proofOfDeliveryUrl: proofOfDeliveryUrl,
+          deliveredAt: new Date().toISOString()
+        });
       } else {
         // For other payment methods, just complete delivery
         const deliveryResult = await firestoreService.updateDeliveryStatus(
           deliveryId,
           'delivered',
-          { requestId: request?.requestId || deliveryId }
+          {
+            requestId: request?.requestId || deliveryId,
+            proofOfDeliveryUrl: proofOfDeliveryUrl,
+            deliveredAt: new Date().toISOString()
+          }
         );
         result = deliveryResult;
       }

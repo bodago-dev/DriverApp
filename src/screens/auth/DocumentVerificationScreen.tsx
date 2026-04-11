@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import authService from '../../services/AuthService';
+import storageService from '../../services/StorageService';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { navigationRef } from '../../services/NavigationService';
 import { useTranslation } from 'react-i18next';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 
 const DocumentVerificationScreen = ({ route, navigation }) => {
   const { t } = useTranslation();
@@ -61,20 +63,17 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
   ];
 
   const handleUploadDocument = (documentId) => {
-    // In a real app, this would open the camera or file picker
-    // For demo purposes, we'll simulate uploading a document
-
     Alert.alert(
       t('onboarding.docs_upload_method'),
       '',
       [
         {
           text: t('onboarding.take_photo'),
-          onPress: () => simulateDocumentUpload(documentId, 'camera'),
+          onPress: () => pickDocument(documentId, 'camera'),
         },
         {
           text: t('onboarding.choose_library'),
-          onPress: () => simulateDocumentUpload(documentId, 'gallery'),
+          onPress: () => pickDocument(documentId, 'gallery'),
         },
         {
           text: t('common.cancel'),
@@ -84,17 +83,56 @@ const DocumentVerificationScreen = ({ route, navigation }) => {
     );
   };
 
-  const simulateDocumentUpload = (documentId, source) => {
-    // Simulate document upload
-    const updatedDocuments = { ...documents };
-    updatedDocuments[documentId] = {
-      id: `${documentId}_${Date.now()}`,
-      name: `${documentTypes.find(doc => doc.id === documentId).name}.jpg`,
-      source,
-      uploadDate: new Date().toISOString(),
+  const pickDocument = async (documentId, source) => {
+    const options = {
+      mediaType: 'photo',
+      includeBase64: false,
+      quality: 0.8,
     };
 
-    setDocuments(updatedDocuments);
+    const callback = async (response) => {
+      if (response.didCancel) {
+        return;
+      }
+
+      if (response.errorCode) {
+        Alert.alert(t('common.error'), response.errorMessage);
+        return;
+      }
+
+      if (response.assets && response.assets.length > 0) {
+        const asset = response.assets[0];
+        await uploadDocument(documentId, asset.uri, asset.fileName || `${documentId}.jpg`);
+      }
+    };
+
+    if (source === 'camera') {
+      launchCamera(options, callback);
+    } else {
+      launchImageLibrary(options, callback);
+    }
+  };
+
+  const uploadDocument = async (documentId, localUri, fileName) => {
+    setIsLoading(true);
+    try {
+      const downloadUrl = await storageService.uploadDocument(localUri, documentId);
+
+      const updatedDocuments = { ...documents };
+      updatedDocuments[documentId] = {
+        id: `${documentId}_${Date.now()}`,
+        name: fileName,
+        url: downloadUrl,
+        uploadDate: new Date().toISOString(),
+      };
+
+      setDocuments(updatedDocuments);
+    } catch (error) {
+      console.error('Document upload error:', error);
+      Alert.alert(t('common.error'), t('onboarding.docs_save_error'));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async () => {

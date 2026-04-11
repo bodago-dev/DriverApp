@@ -641,7 +641,7 @@ class FirestoreService {
     }
   }
 
-  async completeDeliveryAndPayment(deliveryId, paymentMethod) {
+  async completeDeliveryAndPayment(deliveryId, paymentMethod, additionalData = {}) {
     try {
       const batch = writeBatch(this.db);
 
@@ -650,7 +650,8 @@ class FirestoreService {
       batch.update(deliveryRef, {
         status: 'delivered',
         updatedAt: serverTimestamp(),
-        'timeline.delivered': serverTimestamp()
+        'timeline.delivered': serverTimestamp(),
+        ...additionalData
       });
 
       // 2. Update payment status to 'paid' if it's a cash payment
